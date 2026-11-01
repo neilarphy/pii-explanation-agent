@@ -1,5 +1,18 @@
 # pii-explanation-agent
 
+## Структура
+
+```
+data/         — pii-bench (в data/raw/, не в git) и наши хитрые примеры   Детекторы и данные
+detectors/    — регулярки, GLiNER, запись лога сработки                  Детекторы и данные
+agent/        — агент, промпты, инструменты                              Агент
+evaluation/   — метрики и сравнение с простыми правилами                 Оценка
+docs/         — формат JSON, слайды, черновик статьи                     все
+tests/        — тесты, запускаются в CI
+```
+
+Код запускается из корня репозитория: `uv run python -m agent.<модуль>`.
+
 ## Разработка
 
 Нужен [uv](https://docs.astral.sh/uv/getting-started/installation/).
