@@ -1,0 +1,39 @@
+[project]
+name = "pii-explanation-agent"
+version = "0.1.0"
+description = "Агент, который разбирает спорные сработки PII-детектора и объясняет вердикт"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0",
+    "pytest>=8.0",
+    "ruff>=0.17",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # bugbear
+    "UP",  # pyupgrade
+    "SIM", # simplify
+    "RUF", # ruff-specific
+]
+ignore = [
+    "E501",    # длину строк держит форматтер; длинные промпты и русский текст не ломаем
+    "RUF001",  # кириллица в строках — это норма для проекта, а не «похожие символы»
+    "RUF002",  # то же для докстрингов
+    "RUF003",  # то же для комментариев
+]
+
+[tool.ruff.lint.per-file-ignores]
+"*.ipynb" = ["E402"]  # импорты в середине ноутбука
