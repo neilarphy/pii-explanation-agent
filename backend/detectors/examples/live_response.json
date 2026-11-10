@@ -1,0 +1,249 @@
+{
+  "schema_version": "1.0",
+  "request_id": "1d4e83ed-5db7-461f-8988-e7f6d980a9b9",
+  "has_pii": true,
+  "entities": [
+    {
+      "id": "e1",
+      "type": "PERSON",
+      "start": 2,
+      "end": 6,
+      "text": "Анна",
+      "candidate_ids": [
+        "c1"
+      ]
+    },
+    {
+      "id": "e2",
+      "type": "PERSON",
+      "start": 2,
+      "end": 14,
+      "text": "Анна Иванова",
+      "candidate_ids": [
+        "c2"
+      ]
+    },
+    {
+      "id": "e3",
+      "type": "PERSON",
+      "start": 7,
+      "end": 14,
+      "text": "Иванова",
+      "candidate_ids": [
+        "c3"
+      ]
+    },
+    {
+      "id": "e4",
+      "type": "PERSON",
+      "start": 17,
+      "end": 21,
+      "text": "John",
+      "candidate_ids": [
+        "c4"
+      ]
+    },
+    {
+      "id": "e5",
+      "type": "PERSON",
+      "start": 17,
+      "end": 27,
+      "text": "John Smith",
+      "candidate_ids": [
+        "c5"
+      ]
+    },
+    {
+      "id": "e6",
+      "type": "PERSON",
+      "start": 22,
+      "end": 27,
+      "text": "Smith",
+      "candidate_ids": [
+        "c6"
+      ]
+    },
+    {
+      "id": "e7",
+      "type": "EMAIL",
+      "start": 29,
+      "end": 58,
+      "text": "acceptance-847291@example.org",
+      "candidate_ids": [
+        "c7",
+        "c8"
+      ]
+    }
+  ],
+  "trace": {
+    "profile": "pii-ru-en-v1",
+    "policy_version": "1.0.0",
+    "offset_unit": "unicode_code_point",
+    "text_length": 58,
+    "model": {
+      "id": "hivetrace/gliner-guard-omni",
+      "revision": "bda9b81a77421f48bff373d8339adaf225ff8764",
+      "device": "cuda:0",
+      "dtype": "float32",
+      "status": "ok",
+      "emit_threshold": 0.2,
+      "accept_threshold": 0.5,
+      "labels": [
+        "person",
+        "first_name",
+        "last_name",
+        "address",
+        "email",
+        "phone",
+        "passport",
+        "national_id",
+        "date_of_birth",
+        "card_number",
+        "bank_account"
+      ],
+      "windows": [
+        {
+          "id": "w1",
+          "start": 0,
+          "end": 58,
+          "candidate_count": 7
+        }
+      ]
+    },
+    "regex": {
+      "engine": "python.re",
+      "device": "cpu",
+      "status": "ok",
+      "rules": [
+        {
+          "id": "email_ascii_v1",
+          "matches": 1
+        },
+        {
+          "id": "phone_plus_v1",
+          "matches": 0
+        },
+        {
+          "id": "phone_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "card_pan_v1",
+          "matches": 0
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "id": "c1",
+        "type": "PERSON",
+        "start": 2,
+        "end": 6,
+        "decision": "accepted",
+        "entity_id": "e1",
+        "source": "model",
+        "raw_label": "first_name",
+        "window_id": "w1",
+        "score": 0.9982234835624695,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c2",
+        "type": "PERSON",
+        "start": 2,
+        "end": 14,
+        "decision": "accepted",
+        "entity_id": "e2",
+        "source": "model",
+        "raw_label": "person",
+        "window_id": "w1",
+        "score": 0.9834153652191162,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c3",
+        "type": "PERSON",
+        "start": 7,
+        "end": 14,
+        "decision": "accepted",
+        "entity_id": "e3",
+        "source": "model",
+        "raw_label": "last_name",
+        "window_id": "w1",
+        "score": 0.9610546827316284,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c4",
+        "type": "PERSON",
+        "start": 17,
+        "end": 21,
+        "decision": "accepted",
+        "entity_id": "e4",
+        "source": "model",
+        "raw_label": "first_name",
+        "window_id": "w1",
+        "score": 0.9922307133674622,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c5",
+        "type": "PERSON",
+        "start": 17,
+        "end": 27,
+        "decision": "accepted",
+        "entity_id": "e5",
+        "source": "model",
+        "raw_label": "person",
+        "window_id": "w1",
+        "score": 0.9110621809959412,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c6",
+        "type": "PERSON",
+        "start": 22,
+        "end": 27,
+        "decision": "accepted",
+        "entity_id": "e6",
+        "source": "model",
+        "raw_label": "last_name",
+        "window_id": "w1",
+        "score": 0.9968030452728271,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c7",
+        "type": "EMAIL",
+        "start": 29,
+        "end": 58,
+        "decision": "accepted",
+        "entity_id": "e7",
+        "source": "model",
+        "raw_label": "email",
+        "window_id": "w1",
+        "score": 0.9999179840087891,
+        "reason": "model_threshold_passed"
+      },
+      {
+        "id": "c8",
+        "type": "EMAIL",
+        "start": 29,
+        "end": 58,
+        "decision": "accepted",
+        "entity_id": "e7",
+        "source": "regex",
+        "rule_id": "email_ascii_v1",
+        "score": null,
+        "reason": "rule_passed"
+      }
+    ],
+    "timings_ms": {
+      "queue": 0.005603003955911845,
+      "model": 416.6748479983653,
+      "regex": 0.08794699533609673,
+      "merge": 0.3253430040786043,
+      "total": 423.5369169982732
+    }
+  }
+}
