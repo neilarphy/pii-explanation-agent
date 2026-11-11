@@ -45,8 +45,8 @@ flowchart LR
 
 **Стек и развёртывание**
 
-- Python 3.12, FastAPI, pydantic (форматы из `backend/schemas`), SQLite на MVP.
-- Фронт и backend на одном VPS без GPU через docker-compose.
+- Python 3.12, FastAPI, pydantic (форматы из `backend/schemas`), PostgreSQL.
+- Фронт, backend и PostgreSQL на одном VPS без GPU через docker-compose. Локально PostgreSQL можно поставить бинарником.
 - Сервис детекторов (`backend/detectors`) — отдельный контейнер с GPU. На MVP запускается локально, на сервер попадают готовые логи; перезапуск модели на сервере — после MVP, если появится режим на CPU.
 - LLM на MVP по API, после MVP — локальная Qwen до 27B на GPU-квоте (рядом с инференсом HiveTrace на 40–60 ГБ).
 
