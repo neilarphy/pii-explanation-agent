@@ -15,7 +15,9 @@ import urllib.request
 from pathlib import Path
 
 from backend.agent.detector_adapter import load_rules, to_detection_log
-from evaluation.pii_bench import gold_to_json, load
+from backend.schemas import Session
+from evaluation import redmadrobot
+from evaluation.pii_bench import BenchItem, gold_from_json, gold_to_json, load
 
 
 def detect(url: str, text: str) -> dict:
@@ -31,7 +33,11 @@ def detect(url: str, text: str) -> dict:
 def main() -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--data", type=Path, required=True, help="папка с domain.parquet")
+    parser.add_argument("--data", type=Path, help="папка с domain.parquet (pii-bench)")
+    parser.add_argument("--scenarios", type=Path, help="jsonl из scripts.generate_scenarios")
+    parser.add_argument(
+        "--redmadrobot", type=Path, help="test.csv из redmadrobot-rnd/pii_benchmark"
+    )
     parser.add_argument("--profile", type=Path, required=True, help="profile.toml детектора")
     parser.add_argument("--url", default="http://127.0.0.1:8000/v1/detect")
     parser.add_argument("--split", default="domain", choices=["domain", "entity"])
@@ -39,7 +45,18 @@ def main() -> int:
     parser.add_argument("--limit", type=int, help="первые N примеров (для проверки)")
     args = parser.parse_args()
 
-    items = load(args.data, args.split)[: args.limit]
+    if args.scenarios:
+        items = [
+            BenchItem(r["domain"], Session.model_validate(r["session"]), gold_from_json(r["gold"]))
+            for r in map(json.loads, args.scenarios.read_text("utf-8").splitlines())
+        ]
+    elif args.redmadrobot:
+        items = redmadrobot.load(args.redmadrobot)
+    elif args.data:
+        items = load(args.data, args.split)
+    else:
+        parser.error("нужен --data, --scenarios или --redmadrobot")
+    items = items[: args.limit]
     rules = load_rules(args.profile)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
