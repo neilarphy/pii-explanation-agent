@@ -1,0 +1,11 @@
+# Стандартные правила gitleaks плюс одно исключение: синтетические токены в своих
+# сценариях (evaluation/scenarios.py: token) похожи на ключи Stripe намеренно —
+# это приманки для агента, а не секреты.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "синтетические токены sk_live_ в сгенерированных сценариях"
+condition = "AND"
+paths = ['''^data/scenarios/.*\.jsonl$''']
+regexes = ['''sk_live_[0-9a-f]{32}''']

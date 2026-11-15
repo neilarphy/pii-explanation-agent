@@ -47,7 +47,8 @@ def score_detector(records: list[tuple[DetectionLog, tuple[GoldSpan, ...]]]) -> 
     """
     report = DetectorReport()
     for log, gold in records:
-        for g in gold:
+        positives = [g for g in gold if g.cat != "none"]  # приманки сценариев — не ПДн
+        for g in positives:
             if g.detector_type is None:
                 report.uncovered_gold[g.type] += 1
                 continue
@@ -63,7 +64,7 @@ def score_detector(records: list[tuple[DetectionLog, tuple[GoldSpan, ...]]]) -> 
             else:
                 score.fn += 1
         for e in log.entities:
-            if not any(_overlap(e.turn, e.start, e.end, g) for g in gold):
+            if not any(_overlap(e.turn, e.start, e.end, g) for g in positives):
                 report.by_type[e.type].fp += 1
     return report
 
