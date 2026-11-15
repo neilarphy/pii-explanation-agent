@@ -2,6 +2,7 @@
 
 from backend.schemas.agent import (
     AgentAnswer,
+    Category,
     Citation,
     Recommendation,
     Summary,
@@ -20,6 +21,7 @@ from backend.schemas.session import Message, Session
 __all__ = [
     "AgentAnswer",
     "Candidate",
+    "Category",
     "Citation",
     "DetectionLog",
     "Entity",

@@ -68,9 +68,18 @@ def score_detector(records: list[tuple[DetectionLog, tuple[GoldSpan, ...]]]) -> 
     return report
 
 
-def expected_verdict(case: Case, gold: tuple[GoldSpan, ...]) -> str:
-    """Автоэталон: есть ли в этом месте ПДн по разметке pii-bench (тип не важен)."""
-    is_pii = any(_overlap(case.turn, case.start, case.end, g) for g in gold)
+_RANK = {"pii": 2, "sensitive": 1, "none": 0}
+
+
+def expected(case: Case, gold: tuple[GoldSpan, ...]) -> tuple[str, str]:
+    """Автоэталон (вердикт, категория) по разметке pii-bench и политике 152-ФЗ.
+
+    Категория — самая «строгая» среди пересекающихся эталонных спанов (none, если их нет).
+    Маскировать нужно pii и sensitive; реквизиты организаций (КПП, ОГРН, ИНН из 10 цифр) — нет.
+    """
+    hits = [g.category for g in gold if _overlap(case.turn, case.start, case.end, g)]
+    category = max(hits, key=_RANK.__getitem__, default="none")
+    mask = category != "none"
     if case.kind == "entity":
-        return "true_pii" if is_pii else "false_positive"
-    return "missed_pii" if is_pii else "no_issue"
+        return ("true_pii" if mask else "false_positive"), category
+    return ("missed_pii" if mask else "no_issue"), category
