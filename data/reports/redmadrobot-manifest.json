@@ -1,0 +1,50 @@
+{
+  "dataset": "redmadrobot-rnd/pii_benchmark",
+  "revision": "f77ea831274daf980cc45c61a93c226be9d978d6",
+  "license": "mit",
+  "url": "https://huggingface.co/datasets/redmadrobot-rnd/pii_benchmark/resolve/f77ea831274daf980cc45c61a93c226be9d978d6/test.csv",
+  "input_mode": "download_pinned",
+  "sha256": "6bf544a380a3ee5bec94b946124bea3afaecce49e734679ad0f0c0e7c12977bb",
+  "adapter_version": "1.0",
+  "counts": {
+    "rows": 2841,
+    "accepted": 2840,
+    "rejected": 1,
+    "duplicates": 0,
+    "entities": 5612
+  },
+  "entity_counts": {
+    "STREET": 171,
+    "HOUSE": 163,
+    "CITY": 338,
+    "COUNTRY": 241,
+    "PHONE": 173,
+    "URL": 206,
+    "REGION": 176,
+    "BIRTH_CERTIFICATE": 341,
+    "IP_ADDRESS": 155,
+    "CREDIT_CARD": 203,
+    "FIRST_NAME": 499,
+    "MIDDLE_NAME": 308,
+    "DRIVER_LICENSE": 371,
+    "PASSPORT": 494,
+    "LAST_NAME": 457,
+    "INN": 263,
+    "DISTRICT": 161,
+    "OMS": 170,
+    "SNILS": 223,
+    "MILITARY_ID": 278,
+    "EMAIL": 221
+  },
+  "split": "test",
+  "filters": [
+    "strict BIO",
+    "anchored case-insensitive token alignment",
+    "exact text deduplication"
+  ],
+  "transformations": [
+    "BIO to Unicode character spans",
+    "one sentence to one user message"
+  ],
+  "split_policy": "original test only; no train or calibration reuse; group by text SHA256"
+}
