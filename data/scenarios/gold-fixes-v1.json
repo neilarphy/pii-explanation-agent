@@ -1,0 +1,8 @@
+[
+  {"session": "sc-third_party-3", "turn": 2, "text": "Москва, улица Ленина, дом 5", "type": "ADDRESS", "cat": "pii",
+   "reason": "генератор вписал адрес получателя сверх заглушек"},
+  {"session": "sc-words_phone-3", "turn": 2, "text": "Алексей", "type": "NAME", "cat": "pii",
+   "reason": "генератор вписал имя пользователя сверх заглушек"},
+  {"session": "sc-words_phone-3", "turn": 3, "text": "Алексей", "type": "NAME", "cat": "pii",
+   "reason": "бот повторил имя пользователя"}
+]
