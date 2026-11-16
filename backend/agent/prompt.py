@@ -1,7 +1,7 @@
 """Промпт агента: системная инструкция + диалог + одна находка."""
 
 from backend.agent.cases import Case
-from backend.agent.checks import format_check, identify
+from backend.agent.checks import CodeCheck, format_check, identify, scan
 from backend.schemas import DetectionLog, Session
 
 SYSTEM_PROMPT = """\
@@ -27,8 +27,14 @@ SYSTEM_PROMPT = """\
 Правила:
 - Разбирай ровно указанный фрагмент. Если это название типа («снилс»), а значение стоит рядом,
   фрагмент — none: значение разбирается отдельной находкой.
-- Проверкам кодом доверяй: сошлась контрольная сумма ИНН, СНИЛС, ОГРН или карты — значит это число
-  такого вида. ИНН из 10 цифр принадлежит организации.
+- Проверки кодом говорят о форме значения, а не о смысле. Сошлась контрольная сумма — число может
+  быть таким номером, но решает контекст: номер заказа, договора, накладной или трек-номер с верной
+  суммой Луна — не карта (none). Число, записанное как паспорт (4 цифры, пробел, 6 цифр), —
+  паспорт, даже если сходится сумма ИНН.
+- Реквизиты: ИНН из 10 цифр и ОГРН — организация (none). ИНН из 12 цифр и ОГРНИП — человек, в том
+  числе индивидуальный предприниматель, — это pii и в деловом контексте («застройщик», «поставщик»).
+- Если код показал, что фрагмент — часть целого значения (телефон, email или адрес целиком),
+  оценивай значение целиком: часть телефона или email — тоже pii, а неполные границы отметь в note.
 - Опирайся на контекст диалога и данные детектора: правило, score, пороги.
 - Цитаты — только дословные фрагменты реплик с номером реплики. Первая цитата — сама находка.
 - Рекомендация — только если детектор ошибся. kind: threshold | pattern | allowlist | retrain | ticket;
@@ -71,6 +77,15 @@ def code_checks(case: Case) -> str:
     return {True: "формат подходит", False: "формат не подходит", None: "проверок нет"}[result]
 
 
+def enclosing_value(case: Case, session: Session) -> tuple[str, CodeCheck] | None:
+    """Целое значение, найденное кодом, частью которого является фрагмент («dima» в email словами)."""
+    text = next((m.text for m in session.messages if m.turn == case.turn), "")
+    for start, end, check in scan(text):
+        if start < case.end and case.start < end and end - start > case.end - case.start:
+            return text[start:end], check
+    return None
+
+
 def build_messages(case: Case, session: Session, log: DetectionLog) -> list[dict[str, str]]:
     rules = ", ".join(f"{r.id} ({r.type}, проверка {r.validator})" for r in log.rules)
     dialog = "\n".join(f"[{m.turn}] {_DIRECTION[m.direction]}: {m.text}" for m in session.messages)
@@ -89,6 +104,11 @@ def build_messages(case: Case, session: Session, log: DetectionLog) -> list[dict
     if case.candidates:
         lines += ["- кандидаты детектора:", *(_candidate_line(c) for c in case.candidates)]
     lines.append(f"- проверки кодом: {code_checks(case)}")
+    if whole := enclosing_value(case, session):
+        value, check = whole
+        lines.append(
+            f"- фрагмент — часть целого значения, найденного кодом: «{value}» ({check.description})"
+        )
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(lines)},
