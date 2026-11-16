@@ -5,8 +5,7 @@ from pathlib import Path
 
 from backend.agent.cases import build_cases
 from backend.schemas import AgentAnswer, DetectionLog, Session
-from evaluation.judge import judge_messages, parse_verdicts
-from scripts.review import cohen_kappa
+from evaluation.judge import cohen_kappa, judge_messages, parse_verdicts
 
 EXAMPLES = Path(__file__).resolve().parents[1] / "docs" / "examples"
 

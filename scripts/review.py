@@ -19,6 +19,7 @@ import random
 import sys
 from pathlib import Path
 
+from evaluation.judge import cohen_kappa
 from scripts.judge import find_case, load_context
 
 QUESTIONS = ["faithful", "citations_ok", "recommendation_ok", "verdict_ok"]
@@ -78,16 +79,6 @@ def _value(cell: str):
     if cell in ("0", "нет", "no"):
         return 0
     return None  # n/a или не заполнено
-
-
-def cohen_kappa(pairs: list[tuple[int, int]]) -> float:
-    n = len(pairs)
-    if not n:
-        return 0.0
-    observed = sum(a == b for a, b in pairs) / n
-    p_a, p_b = sum(a for a, _ in pairs) / n, sum(b for _, b in pairs) / n
-    expected = p_a * p_b + (1 - p_a) * (1 - p_b)
-    return 1.0 if expected == 1 else (observed - expected) / (1 - expected)
 
 
 def agreement(args) -> None:

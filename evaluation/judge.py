@@ -68,3 +68,14 @@ def parse_verdicts(data: dict) -> Verdicts:
         unsupported_claims=tuple(data.get("unsupported_claims") or ()),
         comment=data.get("comment") or "",
     )
+
+
+def cohen_kappa(pairs: list[tuple[int, int]]) -> float:
+    """Согласие двух оценщиков (человек и судья) с поправкой на случайное совпадение."""
+    n = len(pairs)
+    if not n:
+        return 0.0
+    observed = sum(a == b for a, b in pairs) / n
+    p_a, p_b = sum(a for a, _ in pairs) / n, sum(b for _, b in pairs) / n
+    expected = p_a * p_b + (1 - p_a) * (1 - p_b)
+    return 1.0 if expected == 1 else (observed - expected) / (1 - expected)
