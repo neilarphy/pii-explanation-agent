@@ -130,7 +130,7 @@ def test_unknown_reference():
 def test_jsonl_duplicates_and_bad_line(tmp_path):
     path = tmp_path / "examples.jsonl"
     text = convert_row(row(), 0).model_dump_json()
-    path.write_text(text + "\n" + text + "\n")
+    path.write_text(text + "\n" + text + "\n", encoding="utf-8")
     with pytest.raises(ValueError, match="line 2"):
         list(read_jsonl(path))
     path.write_text("\n")
@@ -161,7 +161,7 @@ def test_cli_offline_pipeline(tmp_path, monkeypatch):
     from data.__main__ import main
 
     csv_path = tmp_path / "input.csv"
-    with csv_path.open("w", newline="") as stream:
+    with csv_path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=["text", "tokens", "ner_tags"])
         writer.writeheader()
         writer.writerows([row(), row(), row("x", ["x"], ["I-EMAIL"])])
