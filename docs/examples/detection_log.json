@@ -1,0 +1,162 @@
+{
+  "session_id": "s-001",
+  "profile": "pii-ru-en-v1",
+  "policy_version": "1.0.0",
+  "model": {
+    "id": "hivetrace/gliner-guard-omni",
+    "emit_threshold": 0.2,
+    "accept_threshold": 0.5,
+    "labels": [
+      "person",
+      "first_name",
+      "last_name",
+      "address",
+      "email",
+      "phone",
+      "passport",
+      "national_id",
+      "date_of_birth",
+      "card_number",
+      "bank_account"
+    ]
+  },
+  "rules": [
+    {
+      "id": "email_ascii_v1",
+      "type": "EMAIL",
+      "pattern": "[A-Za-z0-9_%+-]+(?:\\.[A-Za-z0-9_%+-]+)*@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+",
+      "validator": "email_ascii"
+    },
+    {
+      "id": "phone_plus_v1",
+      "type": "PHONE",
+      "pattern": "\\+[1-9][0-9]{7,14}",
+      "validator": "phone_plus"
+    },
+    {
+      "id": "phone_ru_v1",
+      "type": "PHONE",
+      "pattern": "(?:\\+7|8)[ -]?\\([0-9]{3}\\)[ -]?[0-9]{3}[ -]?[0-9]{2}[ -]?[0-9]{2}",
+      "validator": "phone_ru"
+    },
+    {
+      "id": "card_pan_v1",
+      "type": "PAYMENT_CARD",
+      "pattern": "[0-9](?:[ -]?[0-9]){12,18}",
+      "validator": "card_pan"
+    }
+  ],
+  "entities": [
+    {
+      "id": "s-001-t0-e1",
+      "turn": 0,
+      "start": 54,
+      "end": 73,
+      "text": "4276 1234 5678 9014",
+      "type": "PAYMENT_CARD",
+      "candidate_ids": [
+        "s-001-t0-c1"
+      ]
+    },
+    {
+      "id": "s-001-t2-e1",
+      "turn": 2,
+      "start": 0,
+      "end": 20,
+      "text": "anna.petrova@mail.ru",
+      "type": "EMAIL",
+      "candidate_ids": [
+        "s-001-t2-c1",
+        "s-001-t2-c2"
+      ]
+    },
+    {
+      "id": "s-001-t2-e2",
+      "turn": 2,
+      "start": 34,
+      "end": 42,
+      "text": "Соколову",
+      "type": "PERSON",
+      "candidate_ids": [
+        "s-001-t2-c3"
+      ]
+    }
+  ],
+  "candidates": [
+    {
+      "id": "s-001-t0-c1",
+      "turn": 0,
+      "start": 54,
+      "end": 73,
+      "text": "4276 1234 5678 9014",
+      "type": "PAYMENT_CARD",
+      "source": "regex",
+      "decision": "accepted",
+      "reason": "rule_passed",
+      "entity_id": "s-001-t0-e1",
+      "score": null,
+      "rule_id": "card_pan_v1",
+      "raw_label": null
+    },
+    {
+      "id": "s-001-t2-c1",
+      "turn": 2,
+      "start": 0,
+      "end": 20,
+      "text": "anna.petrova@mail.ru",
+      "type": "EMAIL",
+      "source": "model",
+      "decision": "accepted",
+      "reason": "model_threshold_passed",
+      "entity_id": "s-001-t2-e1",
+      "score": 0.97,
+      "rule_id": null,
+      "raw_label": "email"
+    },
+    {
+      "id": "s-001-t2-c2",
+      "turn": 2,
+      "start": 0,
+      "end": 20,
+      "text": "anna.petrova@mail.ru",
+      "type": "EMAIL",
+      "source": "regex",
+      "decision": "accepted",
+      "reason": "rule_passed",
+      "entity_id": "s-001-t2-e1",
+      "score": null,
+      "rule_id": "email_ascii_v1",
+      "raw_label": null
+    },
+    {
+      "id": "s-001-t2-c3",
+      "turn": 2,
+      "start": 34,
+      "end": 42,
+      "text": "Соколову",
+      "type": "PERSON",
+      "source": "model",
+      "decision": "accepted",
+      "reason": "model_threshold_passed",
+      "entity_id": "s-001-t2-e2",
+      "score": 0.52,
+      "rule_id": null,
+      "raw_label": "last_name"
+    },
+    {
+      "id": "s-001-t4-c1",
+      "turn": 4,
+      "start": 11,
+      "end": 40,
+      "text": "8 9 1 2 3 4 5 6 7 8 9 доб. 12",
+      "type": "PHONE",
+      "source": "model",
+      "decision": "rejected",
+      "reason": "below_model_threshold",
+      "entity_id": null,
+      "score": 0.31,
+      "rule_id": null,
+      "raw_label": "phone"
+    }
+  ]
+}

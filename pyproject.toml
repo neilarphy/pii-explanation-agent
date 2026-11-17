@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "Агент, который разбирает спорные сработки PII-детектора и объясняет вердикт"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "pydantic>=2.14.3",
+]
 
 [dependency-groups]
 dev = [
