@@ -77,8 +77,8 @@ def test_prompt_contains_dialog_and_detector_facts(session, log, reference):
     card, *_, phone = seen
     assert "номер заказа 4276 1234 5678 9014" in card
     assert "rule_id=card_pan_v1" in card
-    assert "проверка формата кодом: пройдена" in card
-    assert "кандидат, детектор его отклонил" in phone
+    assert "проверки кодом: номер карты: Луна сходится" in card
+    assert "детектор отклонил фрагмент" in phone
     assert "score=0.31" in phone
 
 
@@ -91,9 +91,12 @@ def test_made_up_quote_is_dropped(session):
     assert dropped == ["реплика 2: «Анна Петрова»"]
 
 
-def test_rejected_non_pii_is_skipped(session, log, reference):
+def test_rejected_non_sensitive_is_skipped(session, log, reference):
     case = build_cases(log)[-1]
-    assert explain_case(case, session, log, fake_llm(reference, verdict="no_issue")) is None
+    assert (
+        explain_case(case, session, log, fake_llm(reference, verdict="no_issue", category="none"))
+        is None
+    )
 
 
 def test_missed_pii_needs_format_check(session, log, reference):

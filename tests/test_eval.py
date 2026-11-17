@@ -5,7 +5,7 @@ import json
 from backend.agent.cases import build_cases
 from backend.agent.detector_adapter import to_detection_log
 from backend.schemas import RuleConfig
-from evaluation.metrics import expected_verdict, score_detector
+from evaluation.metrics import expected, score_detector
 from evaluation.pii_bench import to_item
 
 DIALOG = json.dumps(
@@ -167,9 +167,25 @@ def test_detector_metrics_and_auto_labels():
     assert (card.tp, card.fp, card.fn, card.exact) == (1, 0, 0, 1)
     assert (person.tp, person.fp, person.fn) == (0, 1, 1)
 
-    verdicts = {c.id: expected_verdict(c, item.gold) for c in build_cases(log)}
+    verdicts = {c.id: expected(c, item.gold) for c in build_cases(log)}
     assert verdicts == {
-        "pb-a-t0-e1": "true_pii",
-        "pb-a-t0-e2": "false_positive",
-        "pb-a-t0-c3": "missed_pii",
+        "pb-a-t0-e1": ("true_pii", "pii"),
+        "pb-a-t0-e2": ("false_positive", "none"),
+        "pb-a-t0-c3": ("missed_pii", "pii"),
     }
+
+
+def test_company_requisites_are_not_masked():
+    text = "ИНН компании 7707083893, КПП 773601001, токен ab12cd34ef56gh78ij90kl"
+    row = {
+        "id": "c",
+        "domain": "S-BANK",
+        "text": text,
+        "entities": [
+            {"type": "INN", "start": 13, "end": 23, "text": "7707083893"},
+            {"type": "KPP", "start": 29, "end": 38, "text": "773601001"},
+            {"type": "TOKEN", "start": 46, "end": 68, "text": "ab12cd34ef56gh78ij90kl"},
+        ],
+    }
+    item = to_item(row)
+    assert [g.category for g in item.gold] == ["none", "none", "sensitive"]

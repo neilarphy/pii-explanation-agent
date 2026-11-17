@@ -29,6 +29,24 @@ TYPE_MAP: dict[str, str | None] = {
     "TOKEN": None,
 }
 
+# Категория данных по 152-ФЗ: pii — ПДн человека, sensitive — не ПДн, но маскируем,
+# none — реквизиты организаций. ИНН решается по длине: 12 цифр — физлицо, 10 — юрлицо.
+CATEGORY: dict[str, str] = {
+    "NAME": "pii",
+    "PHONE_NUMBER": "pii",
+    "EMAIL": "pii",
+    "ADDRESS": "pii",
+    "BANK_CARD_NUMBER": "pii",
+    "PASSPORT_NUMBER": "pii",
+    "SNILS": "pii",
+    "OGRNIP": "pii",
+    "INN": "pii",
+    "CVC": "sensitive",
+    "TOKEN": "sensitive",
+    "KPP": "none",
+    "OGRN": "none",
+}
+
 _DIRECTION = {"user": "in", "assistant": "out"}
 
 
@@ -43,6 +61,12 @@ class GoldSpan:
     @property
     def detector_type(self) -> str | None:
         return TYPE_MAP.get(self.type)
+
+    @property
+    def category(self) -> str:
+        if self.type == "INN" and len("".join(ch for ch in self.text if ch.isdigit())) == 10:
+            return "none"
+        return CATEGORY.get(self.type, "pii")
 
 
 @dataclass(frozen=True)

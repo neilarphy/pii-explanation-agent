@@ -1,21 +1,25 @@
-"""Что агент разбирает в одной сессии: сущности детектора и отклонённых кандидатов."""
+"""Что агент разбирает в одной сессии.
+
+- entity — сущность, которую детектор принял (вопрос: верно ли);
+- rejected — кандидат, которого детектор отклонил (вопрос: не пропуск ли);
+- scan — фрагмент, который детектор не заметил вовсе, а код нашёл по контрольной
+  сумме или формату (вопрос: не пропуск ли).
+
+Пересекающиеся сущности одного типа («Анна», «Анна Иванова», «Иванова») склеиваются
+в одну находку: агент разбирает имя один раз, а не три.
+"""
 
 from dataclasses import dataclass
 from typing import Literal
 
-from backend.schemas import Candidate, DetectionLog
+from backend.agent.checks import scan
+from backend.schemas import Candidate, DetectionLog, Entity, Session
 
 
 @dataclass(frozen=True)
 class Case:
-    """Одна находка для разбора.
-
-    kind="entity" — сущность, которую детектор принял (вопрос: верно ли).
-    kind="rejected" — кандидат, которого детектор отклонил (вопрос: не пропуск ли).
-    """
-
     id: str
-    kind: Literal["entity", "rejected"]
+    kind: Literal["entity", "rejected", "scan"]
     turn: int
     start: int
     end: int
@@ -25,49 +29,79 @@ class Case:
     candidates: tuple[Candidate, ...]
 
 
-def _overlaps(a_turn: int, a_start: int, a_end: int, b_turn: int, b_start: int, b_end: int) -> bool:
-    return a_turn == b_turn and a_start < b_end and b_start < a_end
+def _overlaps(a, b) -> bool:
+    return a.turn == b.turn and a.start < b.end and b.start < a.end
 
 
-def build_cases(log: DetectionLog) -> list[Case]:
-    """Сущности + отклонённые кандидаты, которые не пересекаются ни с одной сущностью."""
+def _clusters(items: list, same) -> list[list]:
+    """Группы попарно связанных элементов: связь — пересечение спанов и same(a, b)."""
+    groups: list[list] = []
+    for item in items:
+        linked = [g for g in groups if any(_overlaps(item, x) and same(item, x) for x in g)]
+        merged = [item] + [x for g in linked for x in g]
+        groups = [g for g in groups if all(g is not x for x in linked)] + [merged]
+    return groups
+
+
+def _entity_case(group: list[Entity], by_id: dict[str, Candidate]) -> Case:
+    main = max(group, key=lambda e: (e.end - e.start, -e.start))
+    candidate_ids = dict.fromkeys(cid for e in group for cid in e.candidate_ids)
+    return Case(
+        id=main.id,
+        kind="entity",
+        turn=main.turn,
+        start=main.start,
+        end=main.end,
+        text=main.text,
+        type=main.type,
+        entity_id=main.id,
+        candidates=tuple(by_id[cid] for cid in candidate_ids),
+    )
+
+
+def _rejected_case(group: list[Candidate]) -> Case:
+    main = max(group, key=lambda c: (c.score or 0, c.end - c.start))
+    return Case(
+        id=main.id,
+        kind="rejected",
+        turn=main.turn,
+        start=main.start,
+        end=main.end,
+        text=main.text,
+        type=main.type,
+        entity_id=None,
+        candidates=tuple(sorted(group, key=lambda c: c.id)),
+    )
+
+
+def build_cases(log: DetectionLog, session: Session | None = None) -> list[Case]:
+    """Склеенные сущности, отклонённые кандидаты вне сущностей и (если дана сессия) находки кода."""
     by_id = {c.id: c for c in log.candidates}
-    cases = [
-        Case(
-            id=e.id,
-            kind="entity",
-            turn=e.turn,
-            start=e.start,
-            end=e.end,
-            text=e.text,
-            type=e.type,
-            entity_id=e.id,
-            candidates=tuple(by_id[cid] for cid in e.candidate_ids),
-        )
-        for e in log.entities
+    entity_groups = _clusters(list(log.entities), lambda a, b: a.type == b.type)
+    cases = [_entity_case(g, by_id) for g in entity_groups]
+
+    rejected = [
+        c
+        for c in log.candidates
+        if c.decision == "rejected" and not any(_overlaps(c, e) for e in log.entities)
     ]
+    cases += [_rejected_case(g) for g in _clusters(rejected, lambda a, b: True)]
 
-    rejected: dict[tuple[int, int, int], list[Candidate]] = {}
-    for c in log.candidates:
-        if c.decision != "rejected":
-            continue
-        if any(_overlaps(c.turn, c.start, c.end, e.turn, e.start, e.end) for e in log.entities):
-            continue
-        rejected.setdefault((c.turn, c.start, c.end), []).append(c)
-
-    for group in rejected.values():
-        first = group[0]
-        cases.append(
-            Case(
-                id=first.id,
-                kind="rejected",
-                turn=first.turn,
-                start=first.start,
-                end=first.end,
-                text=first.text,
-                type=first.type,
-                entity_id=None,
-                candidates=tuple(group),
-            )
-        )
-    return cases
+    if session is not None:
+        taken = list(log.entities) + list(log.candidates)
+        for m in session.messages:
+            for n, (start, end, check) in enumerate(scan(m.text), 1):
+                span = Case(
+                    id=f"{session.id}-t{m.turn}-s{n}",
+                    kind="scan",
+                    turn=m.turn,
+                    start=start,
+                    end=end,
+                    text=m.text[start:end],
+                    type=check.type,
+                    entity_id=None,
+                    candidates=(),
+                )
+                if not any(_overlaps(span, t) for t in taken):
+                    cases.append(span)
+    return sorted(cases, key=lambda c: (c.turn, c.start, c.kind))

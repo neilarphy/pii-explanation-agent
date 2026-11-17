@@ -15,6 +15,19 @@ class Verdict(StrEnum):
     UNCERTAIN = "uncertain"
 
 
+class Category(StrEnum):
+    """Что за данные во фрагменте — отдельно от того, прав ли детектор.
+
+    pii — персональные данные по 152-ФЗ (ФИО, телефон, email, адрес, паспорт, СНИЛС,
+    ИНН физлица, ОГРНИП, номер карты); sensitive — не ПДн, но тоже маскируются
+    (CVC, токены и ключи); none — не чувствительные данные (номер заказа, реквизиты юрлица).
+    """
+
+    PII = "pii"
+    SENSITIVE = "sensitive"
+    NONE = "none"
+
+
 class Citation(StrictModel):
     """Ссылка на точное место в переписке."""
 
@@ -38,6 +51,7 @@ class AgentAnswer(StrictModel):
 
     entity_id: str | None
     verdict: Verdict
+    category: Category
     confidence: float = Field(ge=0, le=1)
     explanation: str
     citations: list[Citation]
