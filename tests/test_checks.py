@@ -227,3 +227,49 @@ def test_sensitive_miss_is_not_downgraded_by_wrong_detector_type():
     (case,) = build_cases(log, session)
     answer = explain_case(case, session, log, _answer("missed_pii", "sensitive"))
     assert answer.verdict == Verdict.MISSED_PII
+
+
+def _dialog(*texts):
+    from backend.schemas import Message, Session
+
+    return Session(
+        id="s",
+        messages=[
+            Message(turn=i, direction="in" if i % 2 == 0 else "out", text=t)
+            for i, t in enumerate(texts)
+        ],
+    )
+
+
+def _join(session, turn, fragment):
+    from backend.agent.checks import join_across_turns
+
+    start = session.messages[turn].text.index(fragment)
+    return join_across_turns(session, turn, start, start + len(fragment))
+
+
+def test_value_dictated_in_parts_is_joined_across_turns():
+    s = _dialog("Номер начинается с 89164.", "Дальше?", "Да, дальше 855707.")
+    for turn, part in ((0, "89164"), (2, "855707")):
+        joined = _join(s, turn, part)
+        assert joined.value == "89164855707" and joined.check.label == "PHONE"
+        assert joined.parts == ((0, "89164"), (2, "855707"))
+
+
+@pytest.mark.parametrize(
+    ("texts", "turn", "fragment"),
+    [
+        # год в email — не часть номера
+        (("Почта anna.1992@mail.ru", "Ок", "Паспорт 123456"), 2, "123456"),
+        # фрагмент со словами — не группа цифр
+        (("Серия 620142", "Ок", "Выдан 12 июля"), 2, "12 июля"),
+        # целое значение — не часть
+        (("Код 56", "Ок", "Телефон 89367832445"), 2, "89367832445"),
+        # в одной реплике склейка не нужна: значение целиком находит scan
+        (("Номер 89164 855707",), 0, "855707"),
+        # реплики бота не склеиваются
+        (("Начало 89164", "Конец 855707"), 0, "89164"),
+    ],
+)
+def test_no_join_where_parts_are_not_one_value(texts, turn, fragment):
+    assert _join(_dialog(*texts), turn, fragment) is None
