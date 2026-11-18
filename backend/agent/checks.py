@@ -218,6 +218,55 @@ def scan(text: str) -> list[tuple[int, int, CodeCheck]]:
     return sorted(hits)
 
 
+_PART = re.compile(r"(?<![\w@.+\-])\d{2,}(?![\w@\-]|[.,]\d)")
+
+
+@dataclass(frozen=True)
+class Joined:
+    """Значение, продиктованное по частям в нескольких репликах пользователя."""
+
+    value: str
+    parts: tuple[tuple[int, str], ...]  # (реплика, часть)
+    check: CodeCheck
+
+
+def join_across_turns(
+    session: Session, turn: int, start: int, end: int, max_parts: int = 3
+) -> Joined | None:
+    """Склеивает фрагмент с соседними группами цифр из других реплик пользователя.
+
+    «Номер начинается с 89164» … «дальше 855707»: по отдельности ни одна часть не проходит
+    проверку формата, а вместе — телефон. Склеиваем только подряд идущие группы, только из
+    реплик пользователя и только если части стоят в разных репликах (в одной реплике
+    значение целиком находит scan). Частью считается отдельно стоящая группа цифр (не год
+    в email, не кусок слова), которая сама по себе не проходит проверку: целое значение —
+    не часть. Сам фрагмент должен быть ровно одной такой группой.
+    """
+    groups = [
+        (m.turn, g.start(), g.end(), g.group())
+        for m in session.messages
+        if m.direction == "in"
+        for g in _PART.finditer(m.text)
+        if not identify(g.group())
+    ]
+    hit = [i for i, (t, s, e, _) in enumerate(groups) if t == turn and s < end and start < e]
+    if len(hit) != 1:
+        return None
+    i = hit[0]
+    text = next(m.text for m in session.messages if m.turn == turn)
+    if text[start:end].strip(" .,:;") != groups[i][3]:
+        return None
+    for size in range(2, max_parts + 1):
+        for first in range(max(0, i - size + 1), min(i, len(groups) - size) + 1):
+            window = groups[first : first + size]
+            if len({t for t, *_ in window}) < 2:
+                continue
+            value = "".join(digits for *_, digits in window)
+            if checks := identify(value):
+                return Joined(value, tuple((t, d) for t, _, _, d in window), checks[0])
+    return None
+
+
 def format_check(pii_type: str, text: str) -> bool | None:
     """True/False — формат подходит/не подходит; None — для этого типа проверки нет."""
     if pii_type == "EMAIL":

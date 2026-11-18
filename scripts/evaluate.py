@@ -2,6 +2,7 @@
 
     uv run python -m scripts.evaluate                     # только метрики детектора
     uv run python -m scripts.evaluate --per-class 60      # + агент, до 60 находок на вердикт
+    uv run python -m scripts.evaluate --agent harness --same-as runs/iter4-domain/agent_answers.jsonl
 
 Агент сверяется с автоэталоном из разметки pii-bench по политике 152-ФЗ
 (evaluation.metrics.expected): вердикт и категория. Выборка стратифицирована по ожидаемому
@@ -11,14 +12,18 @@
 import argparse
 import json
 import random
+import statistics
 import sys
+import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict
 from pathlib import Path
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import build_cases
-from backend.agent.llm import client_from_env
+from backend.agent.harness import Flags, Harness, Telemetry
+from backend.agent.llm import chat_from_env
 from backend.schemas import DetectionLog, Session
 from evaluation.metrics import expected, score_detector
 from evaluation.pii_bench import gold_from_json
@@ -96,14 +101,35 @@ def same_cases(records, previous: Path):
     return picked, pool, ids
 
 
-def run_agent(picked, workers: int):
-    complete = client_from_env()
+def pipeline(chat):
+    """Конвейер итерации 4 (один вызов LLM) с тем же учётом расхода, что у харнесса."""
 
+    def explain(case, session, log):
+        replies = []
+
+        def complete(messages):
+            replies.append(chat(messages, None))
+            return replies[-1].text
+
+        started = time.perf_counter()
+        answer = explain_case(case, session, log, complete)
+        telemetry = Telemetry(
+            llm_calls=len(replies),
+            prompt_tokens=sum(r.prompt_tokens for r in replies),
+            completion_tokens=sum(r.completion_tokens for r in replies),
+            seconds=round(time.perf_counter() - started, 2),
+        )
+        return answer, telemetry
+
+    return explain
+
+
+def run_agent(picked, workers: int, explain):
     def one(item):
         want, want_cat, domain, session, log, case = item
         for attempt in range(1, ATTEMPTS + 1):  # bothub временами отдаёт 502 или пустой ответ
             try:
-                answer = explain_case(case, session, log, complete)
+                answer, telemetry = explain(case, session, log)
                 break
             except Exception as exc:  # одна сломанная находка не должна валить прогон
                 if attempt == ATTEMPTS:
@@ -125,6 +151,7 @@ def run_agent(picked, workers: int):
             "got": got,
             "got_category": answer.category.value if answer else None,
             "answer": answer.model_dump(mode="json") if answer else None,
+            "telemetry": asdict(telemetry),
         }
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -173,6 +200,7 @@ def agent_report(rows, sizes, previous_ids: set[str] | None = None) -> list[str]
             f"из {len(old)}. Находки кода вне прошлой выборки: {sum(r['expected'] == r['got'] for r in new)} "
             f"из {len(new)}.",
         ]
+    lines += usage_lines(answered)
     by_domain = Counter((r["domain"], r["expected"] == r["got"]) for r in answered)
     domains = sorted({d for d, _ in by_domain})
     if len(domains) > 1:
@@ -181,6 +209,26 @@ def agent_report(rows, sizes, previous_ids: set[str] | None = None) -> list[str]
             ok, total = by_domain[(d, True)], by_domain[(d, True)] + by_domain[(d, False)]
             lines.append(f"| {d} | {ok}/{total} |")
     return lines
+
+
+def usage_lines(rows) -> list[str]:
+    """Расход на находку: вызовы, повторы после проверки, инструменты, токены, время."""
+    usage = [r["telemetry"] for r in rows if r.get("telemetry")]
+    if not usage:
+        return []
+    seconds = sorted(u["seconds"] for u in usage)
+
+    def mean(key):
+        return statistics.fmean(u[key] for u in usage)
+
+    return [
+        "",
+        f"Расход на находку (в среднем): вызовов LLM {mean('llm_calls'):.2f}, "
+        f"токенов {mean('prompt_tokens'):.0f} на вход и {mean('completion_tokens'):.0f} на выход, "
+        f"{statistics.fmean(seconds):.1f} с (90-й перцентиль {seconds[int(0.9 * (len(seconds) - 1))]:.1f} с). "
+        f"Повтор после проверки — у {sum(u['retries'] > 0 for u in usage)} находок, "
+        f"вызовов инструментов — {sum(u['tool_calls'] for u in usage)}.",
+    ]
 
 
 def main() -> int:
@@ -193,6 +241,13 @@ def main() -> int:
     parser.add_argument(
         "--same-as", type=Path, help="agent_answers.jsonl прошлого прогона: те же находки + новые"
     )
+    parser.add_argument(
+        "--agent", choices=["pipeline", "harness"], default="pipeline", help="конвейер или харнесс"
+    )
+    parser.add_argument("--model", help="модель вместо LLM_MODEL")
+    parser.add_argument("--no-facts", action="store_true", help="харнесс без фактов от кода")
+    parser.add_argument("--no-verify", action="store_true", help="харнесс без проверки ответа")
+    parser.add_argument("--tools", action="store_true", help="харнесс с инструментами")
     parser.add_argument("--out", type=Path, default=Path("runs/eval"))
     args = parser.parse_args()
 
@@ -207,7 +262,16 @@ def main() -> int:
     elif args.per_class:
         picked, sizes = sample_cases(records, args.per_class, args.seed)
     if args.same_as or args.per_class:
-        rows = run_agent(picked, args.workers)
+        chat = chat_from_env(args.model)
+        if args.agent == "harness":
+            flags = Flags(facts=not args.no_facts, verify=not args.no_verify, tools=args.tools)
+            explain = Harness(chat, flags).explain
+            agent = f"харнесс ({flags})"
+        else:
+            explain = pipeline(chat)
+            agent = "конвейер"
+        report[1:1] = ["", f"Агент: {agent}, модель {args.model or 'из LLM_MODEL'}."]
+        rows = run_agent(picked, args.workers, explain)
         (args.out / "agent_answers.jsonl").write_text(
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8"
         )

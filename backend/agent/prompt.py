@@ -1,7 +1,7 @@
 """Промпт агента: системная инструкция + диалог + одна находка."""
 
 from backend.agent.cases import Case
-from backend.agent.checks import CodeCheck, format_check, identify, scan
+from backend.agent.checks import CodeCheck, Joined, format_check, identify, join_across_turns, scan
 from backend.schemas import DetectionLog, Session
 
 SYSTEM_PROMPT = """\
@@ -33,8 +33,9 @@ SYSTEM_PROMPT = """\
   паспорт, даже если сходится сумма ИНН.
 - Реквизиты: ИНН из 10 цифр и ОГРН — организация (none). ИНН из 12 цифр и ОГРНИП — человек, в том
   числе индивидуальный предприниматель, — это pii и в деловом контексте («застройщик», «поставщик»).
-- Если код показал, что фрагмент — часть целого значения (телефон, email или адрес целиком),
-  оценивай значение целиком: часть телефона или email — тоже pii, а неполные границы отметь в note.
+- Если код показал, что фрагмент — часть целого значения (телефон, email или адрес целиком, в том
+  числе продиктованный по частям в разных репликах), оценивай значение целиком: часть телефона или
+  email — тоже pii, а неполные границы отметь в note.
 - Опирайся на контекст диалога и данные детектора: правило, score, пороги.
 - Цитаты — только дословные фрагменты реплик с номером реплики. Первая цитата — сама находка.
 - Рекомендация — только если детектор ошибся. kind: threshold | pattern | allowlist | retrain | ticket;
@@ -86,7 +87,32 @@ def enclosing_value(case: Case, session: Session) -> tuple[str, CodeCheck] | Non
     return None
 
 
-def build_messages(case: Case, session: Session, log: DetectionLog) -> list[dict[str, str]]:
+def joined_value(case: Case, session: Session) -> Joined | None:
+    """Значение, продиктованное по частям в разных репликах («89164» … «855707»)."""
+    return join_across_turns(session, case.turn, case.start, case.end)
+
+
+def code_facts(case: Case, session: Session) -> list[str]:
+    """Что код знает о фрагменте: проверки, целое значение вокруг, склейка по репликам."""
+    lines = [f"- проверки кодом: {code_checks(case)}"]
+    if whole := enclosing_value(case, session):
+        value, check = whole
+        lines.append(
+            f"- фрагмент — часть целого значения, найденного кодом: «{value}» ({check.description})"
+        )
+    if joined := joined_value(case, session):
+        parts = " + ".join(f"«{text}» (реплика {turn})" for turn, text in joined.parts)
+        lines.append(
+            f"- фрагмент — часть значения, продиктованного по частям: {parts} = {joined.value} "
+            f"({joined.check.description})"
+        )
+    return lines
+
+
+def build_messages(
+    case: Case, session: Session, log: DetectionLog, facts: bool = True
+) -> list[dict[str, str]]:
+    """facts=False — без фактов от кода (только диалог и данные детектора), для абляции."""
     rules = ", ".join(f"{r.id} ({r.type}, проверка {r.validator})" for r in log.rules)
     dialog = "\n".join(f"[{m.turn}] {_DIRECTION[m.direction]}: {m.text}" for m in session.messages)
     lines = [
@@ -103,12 +129,8 @@ def build_messages(case: Case, session: Session, log: DetectionLog) -> list[dict
     ]
     if case.candidates:
         lines += ["- кандидаты детектора:", *(_candidate_line(c) for c in case.candidates)]
-    lines.append(f"- проверки кодом: {code_checks(case)}")
-    if whole := enclosing_value(case, session):
-        value, check = whole
-        lines.append(
-            f"- фрагмент — часть целого значения, найденного кодом: «{value}» ({check.description})"
-        )
+    if facts:
+        lines += code_facts(case, session)
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": "\n".join(lines)},
