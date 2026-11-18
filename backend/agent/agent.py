@@ -36,6 +36,17 @@ def explain_case(
 ) -> AgentAnswer | None:
     """Ответ по одной находке; None — непринятый фрагмент оказался не тем, что надо маскировать."""
     data = parse_json(complete(build_messages(case, session, log)))
+    found = identify(case.text)
+    return finalize(case, session, data, found[0].description if found else None)
+
+
+def finalize(case: Case, session: Session, data: dict, confirmed: str | None) -> AgentAnswer | None:
+    """Ответ модели → AgentAnswer: вердикт по категории, цитаты по тексту, пропуск — по коду.
+
+    confirmed — что код подтвердил о значении (сам фрагмент, целое значение вокруг него или
+    склейка по репликам); None — ничего. Пропуск ПДн без такого подтверждения и с неверным
+    форматом фрагмента понижается до uncertain.
+    """
     try:
         category = Category(data.get("category"))
     except ValueError:
@@ -60,7 +71,7 @@ def explain_case(
     if (
         verdict == Verdict.MISSED_PII
         and category == Category.PII
-        and not identify(case.text)
+        and confirmed is None
         and format_check(case.type, case.text) is False
     ):
         verdict = Verdict.UNCERTAIN
