@@ -57,6 +57,7 @@ class GoldSpan:
     end: int
     type: str  # тип pii-bench
     text: str
+    cat: str | None = None  # явная категория (в своих сценариях: тестовая карта — none)
 
     @property
     def detector_type(self) -> str | None:
@@ -64,6 +65,8 @@ class GoldSpan:
 
     @property
     def category(self) -> str:
+        if self.cat is not None:
+            return self.cat
         if self.type == "INN" and len("".join(ch for ch in self.text if ch.isdigit())) == 10:
             return "none"
         return CATEGORY.get(self.type, "pii")

@@ -22,14 +22,17 @@ def load_env_file(path: Path = ENV_FILE) -> None:
         os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
 
 
-def client_from_env() -> Complete:
-    """LLM_API_KEY и LLM_MODEL обязательны, LLM_BASE_URL — по желанию (из окружения или .env)."""
+def client_from_env(model: str | None = None) -> Complete:
+    """LLM_API_KEY и LLM_MODEL обязательны, LLM_BASE_URL — по желанию (из окружения или .env).
+
+    model переопределяет LLM_MODEL — например, чтобы генерировать данные или судить другой моделью.
+    """
     from openai import OpenAI
 
     load_env_file()
 
     api_key = os.environ.get("LLM_API_KEY")
-    model = os.environ.get("LLM_MODEL")
+    model = model or os.environ.get("LLM_MODEL")
     if not api_key or not model:
         raise RuntimeError("Задайте переменные окружения LLM_API_KEY и LLM_MODEL")
     client = OpenAI(api_key=api_key, base_url=os.environ.get("LLM_BASE_URL", DEFAULT_BASE_URL))
