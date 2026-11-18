@@ -5,8 +5,9 @@ import json
 import pytest
 
 from backend.agent.agent import explain_case
-from backend.agent.cases import build_cases
+from backend.agent.cases import Case, build_cases
 from backend.agent.checks import identify, inn_ok, ogrn_ok, scan, snils_ok
+from backend.agent.prompt import enclosing_value
 from backend.schemas import (
     Candidate,
     Category,
@@ -45,7 +46,13 @@ def test_checksums(check, value, ok):
         ("7707083893", "INN_COMPANY", Category.NONE),
         ("112-233-445 95", "SNILS", Category.PII),
         ("1027700132195", "OGRN", Category.NONE),
-        ("4510 298713", "PASSPORT", Category.PII),
+        ("4510 298713", "PASSPORT_GROUPED", Category.PII),
+        ("4510298713", "PASSPORT", Category.PII),
+        ("7083 620142", "PASSPORT_GROUPED", Category.PII),  # сумма ИНН-10 сходится случайно
+        ("7083620142", "INN_COMPANY", Category.NONE),
+        ("г. Казань, пр-т Мира, д. 43, кв. 154", "ADDRESS", Category.PII),
+        ("восемь девять один шесть пять пять пять три три два два", "PHONE_WORDS", Category.PII),
+        ("dima точка petrova12 собака mail точка ru", "EMAIL_WORDS", Category.PII),
         ("ab12cd34ef56gh78ij90kl", "TOKEN", Category.SENSITIVE),
     ],
 )
@@ -58,6 +65,36 @@ def test_scan_finds_numbers_that_pass_checks_only():
     text = "СНИЛС 112-233-445 95, заказ 123456789, сумма 25000, ИНН 500100732259"
     found = [(text[s:e], c.label) for s, e, c in scan(text)]
     assert found == [("112-233-445 95", "SNILS"), ("500100732259", "INN_PERSON")]
+
+
+def test_scan_finds_values_the_detector_cannot_see():
+    text = (
+        "живу на ул. Красной Армии, дом 5к2, кв 7; офис на ул. Ленина; "
+        "тел. плюс семь девять один шесть, пять пять пять, три три, два два; "
+        "почта anna собака yandex точка ru; код один два три"
+    )
+    found = [(text[s:e], c.label) for s, e, c in scan(text)]
+    assert found == [
+        ("ул. Красной Армии, дом 5к2, кв 7", "ADDRESS"),
+        ("плюс семь девять один шесть, пять пять пять, три три, два два", "PHONE_WORDS"),
+        ("anna собака yandex точка ru", "EMAIL_WORDS"),
+    ]
+
+
+def test_fragment_gets_the_whole_value_found_by_code():
+    session = Session(
+        id="s",
+        messages=[
+            Message(turn=0, direction="in", text="пишите dima точка petrova собака mail точка ru")
+        ],
+    )
+    case = Case("c1", "entity", 0, 7, 11, "dima", "PERSON", "c1", ())
+    value, check = enclosing_value(case, session)
+    assert (value, check.label) == ("dima точка petrova собака mail точка ru", "EMAIL_WORDS")
+    assert (
+        enclosing_value(Case("c2", "entity", 0, 0, 6, "пишите", "PERSON", "c2", ()), session)
+        is None
+    )
 
 
 def _log(entities, candidates) -> DetectionLog:

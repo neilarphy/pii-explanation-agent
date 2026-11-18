@@ -6,7 +6,7 @@ import re
 import pytest
 
 from backend.agent.checks import identify
-from evaluation.scenarios import SCENARIOS, draw_values, fill, generator_messages
+from evaluation.scenarios import SCENARIOS, apply_fixes, draw_values, fill, generator_messages
 
 BY_ID = {s.id: s for s in SCENARIOS}
 
@@ -64,3 +64,18 @@ def test_unknown_or_missing_placeholder_is_an_error():
 def test_generator_prompt_lists_placeholders():
     messages = generator_messages(BY_ID["secrets"], ["CVC", "TOKEN"], "банк")
     assert "{{CVC}}, {{TOKEN}}" in messages[1]["content"]
+
+
+def test_gold_fixes_are_added_once_with_offsets_from_text():
+    record = {
+        "session": {"id": "s", "messages": [{"turn": 0, "text": "Меня зовут Алексей, спасибо."}]},
+        "gold": [],
+    }
+    fix = {"session": "s", "turn": 0, "text": "Алексей", "type": "NAME", "cat": "pii"}
+    assert apply_fixes(record, [fix]) == 1
+    assert apply_fixes(record, [fix]) == 0
+    assert record["gold"] == [
+        {"turn": 0, "start": 11, "end": 18, "type": "NAME", "text": "Алексей", "cat": "pii"}
+    ]
+    with pytest.raises(ValueError):
+        apply_fixes(record, [{**fix, "text": "Борис"}])

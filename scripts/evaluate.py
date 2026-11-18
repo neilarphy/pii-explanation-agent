@@ -25,6 +25,7 @@ from evaluation.pii_bench import gold_from_json
 
 VERDICTS = ["false_positive", "true_pii", "missed_pii", "no_issue"]
 COLUMNS = [*VERDICTS, "uncertain", "ошибка"]
+ATTEMPTS = 3
 
 
 def load_records(path: Path):
@@ -81,15 +82,37 @@ def sample_cases(records, per_class: int, seed: int):
     return picked, {v: len(items) for v, items in pool.items()}
 
 
+def same_cases(records, previous: Path):
+    """Те же находки, что в прошлом прогоне, плюс находки кода, которых тогда не было."""
+    ids = {json.loads(line)["case_id"] for line in previous.read_text("utf-8").splitlines()}
+    pool: dict[str, int] = dict.fromkeys(VERDICTS, 0)
+    picked = []
+    for domain, session, log, gold in records:
+        for case in build_cases(log, session):
+            verdict, category = expected(case, gold)
+            pool[verdict] += 1
+            if case.id in ids or case.kind == "scan":
+                picked.append((verdict, category, domain, session, log, case))
+    return picked, pool, ids
+
+
 def run_agent(picked, workers: int):
     complete = client_from_env()
 
     def one(item):
         want, want_cat, domain, session, log, case = item
-        try:
-            answer = explain_case(case, session, log, complete)
-        except Exception as exc:  # одна сломанная находка не должна валить прогон
-            return {"case_id": case.id, "expected": want, "got": "ошибка", "error": repr(exc)}
+        for attempt in range(1, ATTEMPTS + 1):  # bothub временами отдаёт 502 или пустой ответ
+            try:
+                answer = explain_case(case, session, log, complete)
+                break
+            except Exception as exc:  # одна сломанная находка не должна валить прогон
+                if attempt == ATTEMPTS:
+                    return {
+                        "case_id": case.id,
+                        "expected": want,
+                        "got": "ошибка",
+                        "error": repr(exc),
+                    }
         got = answer.verdict.value if answer else "no_issue"
         return {
             "case_id": case.id,
@@ -114,7 +137,7 @@ def run_agent(picked, workers: int):
     return rows
 
 
-def agent_report(rows, sizes) -> list[str]:
+def agent_report(rows, sizes, previous_ids: set[str] | None = None) -> list[str]:
     confusion = Counter((r["expected"], r["got"]) for r in rows)
     answered = [r for r in rows if r["got"] != "ошибка"]
     correct = sum(r["expected"] == r["got"] for r in answered)
@@ -141,6 +164,22 @@ def agent_report(rows, sizes) -> list[str]:
     ]
     for w in VERDICTS:
         lines.append(f"| {w} | " + " | ".join(str(confusion[(w, g)]) for g in COLUMNS) + " |")
+    if previous_ids is not None:
+        old = [r for r in answered if r["case_id"] in previous_ids]
+        new = [r for r in answered if r["case_id"] not in previous_ids]
+        lines += [
+            "",
+            f"Те же находки, что в прошлом прогоне: {sum(r['expected'] == r['got'] for r in old)} "
+            f"из {len(old)}. Находки кода вне прошлой выборки: {sum(r['expected'] == r['got'] for r in new)} "
+            f"из {len(new)}.",
+        ]
+    by_domain = Counter((r["domain"], r["expected"] == r["got"]) for r in answered)
+    domains = sorted({d for d, _ in by_domain})
+    if len(domains) > 1:
+        lines += ["", "| Домен / сценарий | Совпало |", "|---|---|"]
+        for d in domains:
+            ok, total = by_domain[(d, True)], by_domain[(d, True)] + by_domain[(d, False)]
+            lines.append(f"| {d} | {ok}/{total} |")
     return lines
 
 
@@ -151,21 +190,28 @@ def main() -> int:
     parser.add_argument("--per-class", type=int, default=0, help="находок на вердикт для агента")
     parser.add_argument("--workers", type=int, default=4, help="параллельных вызовов LLM")
     parser.add_argument("--seed", type=int, default=13)
+    parser.add_argument(
+        "--same-as", type=Path, help="agent_answers.jsonl прошлого прогона: те же находки + новые"
+    )
     parser.add_argument("--out", type=Path, default=Path("runs/eval"))
     args = parser.parse_args()
 
     records = list(load_records(args.logs))
-    report = [f"# Оценка на pii-bench ({len(records)} сессий)", "", "## Детектор", ""]
+    report = [f"# Оценка: {args.logs.stem} ({len(records)} сессий)", "", "## Детектор", ""]
     report += detector_table(records)
 
     args.out.mkdir(parents=True, exist_ok=True)
-    if args.per_class:
+    previous_ids = None
+    if args.same_as:
+        picked, sizes, previous_ids = same_cases(records, args.same_as)
+    elif args.per_class:
         picked, sizes = sample_cases(records, args.per_class, args.seed)
+    if args.same_as or args.per_class:
         rows = run_agent(picked, args.workers)
         (args.out / "agent_answers.jsonl").write_text(
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8"
         )
-        report += agent_report(rows, sizes)
+        report += agent_report(rows, sizes, previous_ids)
 
     (args.out / "report.md").write_text("\n".join(report) + "\n", "utf-8")
     print("\n".join(report))

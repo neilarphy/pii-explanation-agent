@@ -363,3 +363,22 @@ def generator_messages(scenario: Scenario, keys: list[str], domain: str) -> list
 
 
 DOMAINS = ["банк", "доставка", "интернет-провайдер", "маркетплейс", "медицинская клиника"]
+
+
+def apply_fixes(record: dict, fixes: list[dict]) -> int:
+    """Дописать эталонные спаны из fixes в запись набора; вернуть число добавленных."""
+    texts = {m["turn"]: m["text"] for m in record["session"]["messages"]}
+    added = 0
+    for fix in fixes:
+        if fix["session"] != record["session"]["id"]:
+            continue
+        start = texts[fix["turn"]].find(fix["text"])
+        if start < 0:
+            raise ValueError(f"{fix['session']}: «{fix['text']}» нет в реплике {fix['turn']}")
+        span = {"turn": fix["turn"], "start": start, "end": start + len(fix["text"])}
+        if any({k: g[k] for k in span} == span for g in record["gold"]):
+            continue
+        record["gold"].append({**span, "type": fix["type"], "text": fix["text"], "cat": fix["cat"]})
+        added += 1
+    record["gold"].sort(key=lambda g: (g["turn"], g["start"]))
+    return added
