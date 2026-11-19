@@ -6,7 +6,7 @@ import pytest
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import Case, build_cases
-from backend.agent.checks import identify, inn_ok, ogrn_ok, scan, snils_ok
+from backend.agent.checks import identify, inn_ok, names_a_type, ogrn_ok, scan, snils_ok
 from backend.agent.prompt import enclosing_value
 from backend.schemas import (
     Candidate,
@@ -273,3 +273,18 @@ def test_value_dictated_in_parts_is_joined_across_turns():
 )
 def test_no_join_where_parts_are_not_one_value(texts, turn, fragment):
     assert _join(_dialog(*texts), turn, fragment) is None
+
+
+@pytest.mark.parametrize(
+    ("pii_type", "text", "is_name"),
+    [
+        ("PHONE", "номер телефона", True),
+        ("PAYMENT_CARD", "карту", True),
+        ("PHONE", "89164855707", False),  # само значение
+        ("PHONE", "восемь девять один шесть", False),  # цифры словами
+        ("NATIONAL_ID", "серия II - МЮ", False),  # серия документа без цифр
+        ("PERSON", "Алексей", False),  # не числовой тип
+    ],
+)
+def test_names_a_type(pii_type, text, is_name):
+    assert names_a_type(pii_type, text) is is_name
