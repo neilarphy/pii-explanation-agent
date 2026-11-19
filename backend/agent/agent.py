@@ -8,6 +8,15 @@ from backend.agent.llm import Complete
 from backend.agent.prompt import build_messages
 from backend.schemas import AgentAnswer, Category, DetectionLog, Session, Verdict
 
+# Строки evidence, которые дописывает код, а не модель: их проверяет код, судья их не видит.
+CODE_EVIDENCE = (
+    "candidate=",
+    "найдено кодом",
+    "отброшены недословные цитаты",
+    "код подтвердил",
+    "сбой агента",
+)
+
 
 def parse_json(raw: str) -> dict:
     """Достаёт JSON-объект из ответа, даже если модель обернула его в ```json."""
@@ -40,12 +49,15 @@ def explain_case(
     return finalize(case, session, data, found[0].description if found else None)
 
 
-def finalize(case: Case, session: Session, data: dict, confirmed: str | None) -> AgentAnswer | None:
+def finalize(
+    case: Case, session: Session, data: dict, confirmed: str | None, guard: bool = True
+) -> AgentAnswer | None:
     """Ответ модели → AgentAnswer: вердикт по категории, цитаты по тексту, пропуск — по коду.
 
     confirmed — что код подтвердил о значении (сам фрагмент, целое значение вокруг него или
     склейка по репликам); None — ничего. Пропуск ПДн без такого подтверждения и с неверным
-    форматом фрагмента понижается до uncertain.
+    форматом фрагмента понижается до uncertain. guard=False — без понижения: вердикт модели
+    как есть (голая модель в сравнении режимов).
     """
     try:
         category = Category(data.get("category"))
@@ -69,7 +81,8 @@ def finalize(case: Case, session: Session, data: dict, confirmed: str | None) ->
     # отклонённого кандидата бывает неверным (токен с типом PAYMENT_CARD), а у CVC и
     # токенов (sensitive) формата карты или документа нет вовсе.
     if (
-        verdict == Verdict.MISSED_PII
+        guard
+        and verdict == Verdict.MISSED_PII
         and category == Category.PII
         and confirmed is None
         and format_check(case.type, case.text) is False
@@ -92,8 +105,40 @@ def finalize(case: Case, session: Session, data: dict, confirmed: str | None) ->
     )
 
 
+def fail_open(case: Case, reason: str) -> AgentAnswer:
+    """Сбой LLM: находка не теряется, а уходит человеку как возможные ПДн (чекпоинт 1).
+
+    Решение детектора не меняется: принятое остаётся замаскированным, отклонённое — на проверку.
+    """
+    detector = (
+        "детектор фрагмент принял, маскирование остаётся"
+        if case.kind == "entity"
+        else "детектор фрагмент не замаскировал, проверьте вручную"
+    )
+    return AgentAnswer(
+        entity_id=case.entity_id,
+        verdict=Verdict.UNCERTAIN,
+        category=Category.PII,
+        confidence=0.0,
+        explanation=f"Агент не смог разобрать находку ({reason}). Это могут быть ПДн: {detector}.",
+        citations=[],
+        evidence=[f"candidate={c.id}" for c in case.candidates] + ["сбой агента, fail-open"],
+        note="Нужен человек: ответа агента нет.",
+    )
+
+
+def failure_reason(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {str(exc)[:120]}"
+
+
 def explain_session(
     session: Session, log: DetectionLog, complete: Complete
 ) -> list[tuple[Case, AgentAnswer | None]]:
-    cases = build_cases(log, session)
-    return [(case, explain_case(case, session, log, complete)) for case in cases]
+    results = []
+    for case in build_cases(log, session):
+        try:
+            answer = explain_case(case, session, log, complete)
+        except Exception as exc:  # сбой LLM или ответа не должен терять находку
+            answer = fail_open(case, failure_reason(exc))
+        results.append((case, answer))
+    return results

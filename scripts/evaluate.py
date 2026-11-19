@@ -3,6 +3,7 @@
     uv run python -m scripts.evaluate                     # только метрики детектора
     uv run python -m scripts.evaluate --per-class 60      # + агент, до 60 находок на вердикт
     uv run python -m scripts.evaluate --agent harness --same-as runs/iter4-domain/agent_answers.jsonl
+    uv run python -m scripts.evaluate --agent bare --model qwen3.5-9b --per-class 10
 
 Агент сверяется с автоэталоном из разметки pii-bench по политике 152-ФЗ
 (evaluation.metrics.expected): вердикт и категория. Выборка стратифицирована по ожидаемому
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import build_cases
-from backend.agent.harness import Flags, Harness, Telemetry
+from backend.agent.harness import MODES, Harness, Telemetry
 from backend.agent.llm import chat_from_env
 from backend.schemas import DetectionLog, Session
 from evaluation.metrics import expected, score_detector
@@ -117,11 +118,23 @@ def pipeline(chat):
             llm_calls=len(replies),
             prompt_tokens=sum(r.prompt_tokens for r in replies),
             completion_tokens=sum(r.completion_tokens for r in replies),
+            cost=sum(r.cost for r in replies),
             seconds=round(time.perf_counter() - started, 2),
         )
         return answer, telemetry
 
     return explain
+
+
+AGENTS = ["pipeline", *MODES]
+
+
+def make_agent(agent: str, model: str | None):
+    """Агент по имени: конвейер итерации 4 или режим харнесса (bare, facts, harness, tools)."""
+    chat = chat_from_env(model)
+    if agent == "pipeline":
+        return pipeline(chat)
+    return Harness(chat, MODES[agent]).explain
 
 
 def run_agent(picked, workers: int, explain):
@@ -227,7 +240,8 @@ def usage_lines(rows) -> list[str]:
         f"токенов {mean('prompt_tokens'):.0f} на вход и {mean('completion_tokens'):.0f} на выход, "
         f"{statistics.fmean(seconds):.1f} с (90-й перцентиль {seconds[int(0.9 * (len(seconds) - 1))]:.1f} с). "
         f"Повтор после проверки — у {sum(u['retries'] > 0 for u in usage)} находок, "
-        f"вызовов инструментов — {sum(u['tool_calls'] for u in usage)}.",
+        f"вызовов инструментов — {sum(u['tool_calls'] for u in usage)}. "
+        f"Стоимость по данным провайдера: ${sum(u.get('cost', 0) for u in usage):.4f}.",
     ]
 
 
@@ -242,12 +256,12 @@ def main() -> int:
         "--same-as", type=Path, help="agent_answers.jsonl прошлого прогона: те же находки + новые"
     )
     parser.add_argument(
-        "--agent", choices=["pipeline", "harness"], default="pipeline", help="конвейер или харнесс"
+        "--agent",
+        choices=AGENTS,
+        default="pipeline",
+        help="конвейер итерации 4 или режим харнесса: bare, facts, harness, tools",
     )
     parser.add_argument("--model", help="модель вместо LLM_MODEL")
-    parser.add_argument("--no-facts", action="store_true", help="харнесс без фактов от кода")
-    parser.add_argument("--no-verify", action="store_true", help="харнесс без проверки ответа")
-    parser.add_argument("--tools", action="store_true", help="харнесс с инструментами")
     parser.add_argument("--out", type=Path, default=Path("runs/eval"))
     args = parser.parse_args()
 
@@ -262,15 +276,8 @@ def main() -> int:
     elif args.per_class:
         picked, sizes = sample_cases(records, args.per_class, args.seed)
     if args.same_as or args.per_class:
-        chat = chat_from_env(args.model)
-        if args.agent == "harness":
-            flags = Flags(facts=not args.no_facts, verify=not args.no_verify, tools=args.tools)
-            explain = Harness(chat, flags).explain
-            agent = f"харнесс ({flags})"
-        else:
-            explain = pipeline(chat)
-            agent = "конвейер"
-        report[1:1] = ["", f"Агент: {agent}, модель {args.model or 'из LLM_MODEL'}."]
+        explain = make_agent(args.agent, args.model)
+        report[1:1] = ["", f"Агент: {args.agent}, модель {args.model or 'из LLM_MODEL'}."]
         rows = run_agent(picked, args.workers, explain)
         (args.out / "agent_answers.jsonl").write_text(
             "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8"

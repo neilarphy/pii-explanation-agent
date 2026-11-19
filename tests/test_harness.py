@@ -6,7 +6,14 @@ import pytest
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import build_cases
-from backend.agent.harness import MAX_RETRIES, Flags, Harness, check_value, search_session
+from backend.agent.harness import (
+    MAX_RETRIES,
+    MODES,
+    Flags,
+    Harness,
+    check_value,
+    search_session,
+)
 from backend.agent.llm import Reply, ToolCall
 from backend.schemas import Candidate, DetectionLog, Message, ModelConfig, Session, Verdict
 
@@ -69,7 +76,7 @@ def scripted(*replies):
         if isinstance(reply, Reply):
             return reply
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)
-        return Reply(text=text, prompt_tokens=100, completion_tokens=20)
+        return Reply(text=text, prompt_tokens=100, completion_tokens=20, cost=0.001)
 
     return chat, seen
 
@@ -81,6 +88,7 @@ def test_split_value_is_confirmed_and_not_downgraded():
     assert any("склейка по репликам 89164855707" in e for e in answer.evidence)
     assert "продиктованного по частям" in seen[0][-1]["content"]
     assert (telemetry.llm_calls, telemetry.retries, telemetry.prompt_tokens) == (1, 0, 100)
+    assert telemetry.cost == pytest.approx(0.001)
 
 
 def test_pipeline_still_downgrades_the_fragment():
@@ -89,11 +97,21 @@ def test_pipeline_still_downgrades_the_fragment():
     assert answer.verdict == Verdict.UNCERTAIN
 
 
-def test_without_facts_harness_behaves_like_pipeline():
+def test_bare_model_gets_no_code_and_keeps_its_verdict():
+    """Голая модель: ни фактов в промпте, ни понижения — вердикт модели как есть."""
     chat, seen = scripted(GOOD)
-    answer, _ = Harness(chat, Flags(facts=False)).explain(case(), SESSION, LOG)
-    assert answer.verdict == Verdict.UNCERTAIN
+    answer, _ = Harness(chat, MODES["bare"]).explain(case(), SESSION, LOG)
+    assert answer.verdict == Verdict.MISSED_PII
     assert "проверки кодом" not in seen[0][-1]["content"]
+    assert not any("код подтвердил" in e for e in answer.evidence)
+
+
+def test_facts_mode_downgrades_what_code_did_not_confirm():
+    """Факты есть, а склейки в диалоге нет — пропуск по одному фрагменту понижается."""
+    lone = SESSION.model_copy(update={"messages": [m for m in SESSION.messages if m.turn != 0]})
+    chat, _ = scripted({**GOOD, "citations": [{"turn": 2, "quote": "855707"}]})
+    answer, _ = Harness(chat, MODES["facts"]).explain(case(), lone, LOG)
+    assert answer.verdict == Verdict.UNCERTAIN
 
 
 def test_wrong_quote_goes_back_to_the_model():
@@ -101,6 +119,7 @@ def test_wrong_quote_goes_back_to_the_model():
     chat, seen = scripted(bad, GOOD)
     answer, telemetry = Harness(chat).explain(case(), SESSION, LOG)
     assert (telemetry.llm_calls, telemetry.retries) == (2, 1)
+    assert telemetry.cost == pytest.approx(0.002)  # стоимость повтора тоже учтена
     feedback = seen[1][-1]["content"]
     assert "не дословные" in feedback and "дальше 855 707" in feedback
     assert [c.quote for c in answer.citations] == ["855707", "89164"]
@@ -140,3 +159,65 @@ def test_tools():
 def test_graph_is_drawable():
     chart = Harness(scripted()[0]).mermaid()
     assert all(node in chart for node in ("gather", "decide", "verify", "finish"))
+
+
+NONE = {**GOOD, "category": "none", "verdict": "no_issue"}
+
+
+def test_contradiction_with_code_goes_back_once():
+    """Код склеил телефон, а модель сказала none — ей возвращают противоречие."""
+    chat, seen = scripted(NONE, GOOD)
+    answer, telemetry = Harness(chat).explain(case(), SESSION, LOG)
+    assert "код нашёл значение целиком" in seen[1][-1]["content"]
+    assert (telemetry.llm_calls, telemetry.retries, answer.verdict) == (2, 1, Verdict.MISSED_PII)
+
+
+def test_model_may_insist_after_contradiction():
+    """Противоречие возвращается один раз: настаивает — решение за моделью, повторы не тратятся."""
+    chat, _ = scripted(NONE, NONE)
+    answer, telemetry = Harness(chat).explain(case(), SESSION, LOG)
+    assert answer is None and telemetry.llm_calls == 2
+
+
+def test_type_name_without_digits_is_questioned():
+    word = LOG.candidates[0].model_copy(update={"turn": 0, "start": 0, "end": 5, "text": "Номер"})
+    log = LOG.model_copy(update={"candidates": [word]})
+    (only,) = build_cases(log, SESSION)
+    said_pii = {**GOOD, "citations": [{"turn": 0, "quote": "Номер"}]}
+    chat, seen = scripted(said_pii, {**said_pii, "category": "none", "verdict": "no_issue"})
+    answer, _ = Harness(chat).explain(only, SESSION, log)
+    assert "название типа данных" in seen[1][-1]["content"]
+    assert answer is None
+
+
+def test_bare_mode_does_not_check_contradictions():
+    chat, _ = scripted(NONE)
+    answer, telemetry = Harness(chat, MODES["bare"]).explain(case(), SESSION, LOG)
+    assert answer is None and telemetry.llm_calls == 1
+
+
+def test_broken_recommendation_goes_back_then_is_dropped():
+    broken = {**GOOD, "recommendation": {"kind": "retrain", "target": "ner", "change": "дообучить"}}
+    chat, seen = scripted(*[broken] * (MAX_RETRIES + 1))
+    answer, telemetry = Harness(chat).explain(case(), SESSION, LOG)
+    assert "recommendation не по схеме (rationale)" in seen[1][-1]["content"]
+    assert telemetry.retries == MAX_RETRIES
+    assert answer.verdict == Verdict.MISSED_PII and answer.recommendation is None
+
+
+def test_llm_failure_fails_open_to_a_human():
+    def broken(messages, tools=None):
+        raise TimeoutError("bothub не ответил")
+
+    answer, telemetry = Harness(broken).explain_or_fail_open(case(), SESSION, LOG)
+    assert answer.verdict == Verdict.UNCERTAIN and answer.category.value == "pii"
+    assert "TimeoutError" in answer.explanation and "проверьте вручную" in answer.explanation
+    assert telemetry.llm_calls == 0
+
+
+def test_session_survives_a_broken_answer():
+    from backend.agent.agent import explain_session
+
+    ((only, answer),) = explain_session(SESSION, LOG, lambda messages: "не json")
+    assert only.id == case().id and answer.verdict == Verdict.UNCERTAIN
+    assert "сбой агента, fail-open" in answer.evidence
