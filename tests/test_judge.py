@@ -36,6 +36,21 @@ def test_judge_sees_what_agent_saw_plus_answer():
     assert "faithful" in system["content"]
     assert "номер заказа 4276 1234 5678 9014" in user["content"]
     assert '"verdict": "false_positive"' in user["content"]
+    assert "Инструкция, по которой работал агент" in user["content"]  # правила агента видны
+
+
+def test_judge_does_not_see_evidence_added_by_code():
+    session = Session.model_validate_json((EXAMPLES / "session.json").read_text("utf-8"))
+    log = DetectionLog.model_validate_json((EXAMPLES / "detection_log.json").read_text("utf-8"))
+    answer = AgentAnswer.model_validate(
+        json.loads((EXAMPLES / "agent_answers.json").read_text("utf-8"))[0]
+    )
+    answer = answer.model_copy(
+        update={"evidence": ["candidate=x-c9", "код подтвердил: телефон", "контекст: заказ"]}
+    )
+    _, user = judge_messages(build_cases(log, session)[0], session, log, answer)
+    assert "candidate=x-c9" not in user["content"] and "код подтвердил" not in user["content"]
+    assert "контекст: заказ" in user["content"]
 
 
 def test_cohen_kappa():
