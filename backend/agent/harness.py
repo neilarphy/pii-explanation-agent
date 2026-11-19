@@ -9,12 +9,14 @@
   вызвать инструмент (маленькие модели делают это плохо или не умеют вовсе).
 - decide — вызов модели; с флагом tools модель может сама поискать по диалогу и проверить
   значение, не больше MAX_TOOL_STEPS шагов.
-- verify — ответ разбирается и проверяется: JSON, допустимые значения, дословность цитат.
-  Найденная ошибка возвращается модели конкретным текстом, и она отвечает заново.
+- verify — ответ разбирается и проверяется: JSON, допустимые значения, дословность цитат, а с
+  фактами — и противоречие им (код нашёл значение целиком, а ответ none; название типа без цифр,
+  а ответ pii). Найденная ошибка возвращается модели конкретным текстом, и она отвечает заново.
 - finish — AgentAnswer: вердикт по категории, офсеты цитат, понижение пропуска, который
   код не подтвердил (с учётом целого значения и склейки — в отличие от конвейера).
 
-Флаги включают части харнесса по отдельности — так видно вклад каждой (абляция).
+Флаги включают части харнесса по отдельности — так видно вклад каждой (абляция). Понижение
+пропуска опирается на факты кода, поэтому без facts его нет: голая модель — без кода вообще.
 """
 
 import json
@@ -23,13 +25,21 @@ from dataclasses import dataclass, replace
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
+from pydantic import ValidationError
 
-from backend.agent.agent import finalize, parse_json
+from backend.agent.agent import fail_open, failure_reason, finalize, parse_json
 from backend.agent.cases import Case
-from backend.agent.checks import format_check, identify, resolve_citations
+from backend.agent.checks import format_check, identify, names_a_type, resolve_citations
 from backend.agent.llm import Chat, Reply
 from backend.agent.prompt import build_messages, enclosing_value, joined_value
-from backend.schemas import AgentAnswer, Category, DetectionLog, Session, Verdict
+from backend.schemas import (
+    AgentAnswer,
+    Category,
+    DetectionLog,
+    Recommendation,
+    Session,
+    Verdict,
+)
 
 MAX_RETRIES = 2
 MAX_TOOL_STEPS = 3
@@ -47,6 +57,14 @@ class Flags:
 
 DEFAULT = Flags()
 
+# Лестница режимов для сравнения моделей: каждая ступень добавляет одну часть харнесса.
+MODES = {
+    "bare": Flags(facts=False, verify=False),  # голая модель: без фактов, проверки и понижения
+    "facts": Flags(verify=False),  # + факты кода и понижение неподтверждённого пропуска
+    "harness": DEFAULT,  # + проверка ответа с возвратом ошибки модели (итерация 5)
+    "tools": Flags(tools=True),  # + инструменты (только для моделей, которые их умеют)
+}
+
 
 @dataclass(frozen=True)
 class Telemetry:
@@ -55,6 +73,7 @@ class Telemetry:
     retries: int = 0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cost: float = 0.0  # USD по данным провайдера
     seconds: float = 0.0
 
     def add(self, reply: Reply) -> "Telemetry":
@@ -63,6 +82,7 @@ class Telemetry:
             llm_calls=self.llm_calls + 1,
             prompt_tokens=self.prompt_tokens + reply.prompt_tokens,
             completion_tokens=self.completion_tokens + reply.completion_tokens,
+            cost=self.cost + reply.cost,
         )
 
 
@@ -170,7 +190,43 @@ def problems_in(raw: str, session: Session) -> tuple[dict | None, list[str]]:
         )
     elif not citations:
         found.append("нет цитат: первая цитата — сама находка с номером реплики")
+    if data.get("recommendation") is not None:
+        try:
+            Recommendation.model_validate(data["recommendation"])
+        except ValidationError as exc:
+            fields = ", ".join(".".join(map(str, e["loc"])) or "объект" for e in exc.errors())
+            found.append(
+                f"recommendation не по схеме ({fields}): нужны kind, target, change, rationale "
+                "или null"
+            )
     return data, found
+
+
+def contradictions(data: dict, case: Case, confirmed: str | None) -> list[str]:
+    """Ответ против фактов кода. Оба правила проверены на эталонах (итерация 6).
+
+    - Код нашёл значение целиком (находка кода, часть целого, склейка), а модель говорит «none»:
+      на трёх наборах такие находки — ПДн в 137 случаях из 137.
+    - Фрагмент числового типа без цифр («номер телефона», «карту»), а модель говорит «pii»:
+      на тех же наборах это ни разу не ПДн (290 из 290); на redmadrobot — 631 из 632, исключение
+      «СНИЛС» похоже на ошибку разметки.
+    """
+    category = data.get("category")
+    found = []
+    whole = case.kind == "scan" or (confirmed is not None and confirmed != _fragment(case))
+    if category == "none" and whole:
+        found.append(
+            f"код нашёл значение целиком ({confirmed or 'находка кода'}), а category none. Часть "
+            "телефона, email или адреса человека — тоже pii. Пересмотри; если оставляешь none, "
+            "объясни в explanation, почему это не данные человека"
+        )
+    if category in ("pii", "sensitive") and names_a_type(case.type, case.text):
+        found.append(
+            f"во фрагменте «{case.text}» нет ни цифр, ни серии — это название типа данных, а не "
+            "само значение, маскировать во фрагменте нечего. Пересмотри; если оставляешь "
+            f"{category}, объясни в explanation, где здесь значение"
+        )
+    return found
 
 
 def build_graph(chat: Chat, flags: Flags = DEFAULT):
@@ -181,7 +237,7 @@ def build_graph(chat: Chat, flags: Flags = DEFAULT):
             messages[-1] = {**messages[-1], "content": messages[-1]["content"] + TOOLS_HINT}
         return {
             "messages": messages,
-            "confirmed": code_confirmation(case, session) if flags.facts else _fragment(case),
+            "confirmed": code_confirmation(case, session) if flags.facts else None,
             "telemetry": Telemetry(),
         }
 
@@ -208,6 +264,9 @@ def build_graph(chat: Chat, flags: Flags = DEFAULT):
         data, found = problems_in(state["raw"], state["session"])
         if not flags.verify:
             return {"data": data, "problems": []}
+        if flags.facts and data is not None and state["telemetry"].retries == 0:
+            # противоречие фактам — один раз: настаивает — решение за моделью
+            found += contradictions(data, state["case"], state["confirmed"])
         if found:
             feedback = (
                 "Ответ не прошёл проверку кодом:\n- "
@@ -235,7 +294,11 @@ def build_graph(chat: Chat, flags: Flags = DEFAULT):
         data = state.get("data")
         if data is None:
             raise ValueError(f"В ответе LLM нет разбираемого JSON: {state['raw'][:200]!r}")
-        answer = finalize(state["case"], state["session"], data, state["confirmed"])
+        if flags.verify and any(p.startswith("recommendation") for p in state["problems"]):
+            data = {**data, "recommendation": None}  # повторы кончились — ответ важнее рекомендации
+        answer = finalize(
+            state["case"], state["session"], data, state["confirmed"], guard=flags.facts
+        )
         confirmed = state["confirmed"]
         if answer and confirmed and confirmed != _fragment(state["case"]):
             answer = answer.model_copy(
@@ -300,6 +363,15 @@ class Harness:
         state = self.graph.invoke({"case": case, "session": session, "log": log})
         telemetry = replace(state["telemetry"], seconds=round(time.perf_counter() - started, 2))
         return state["answer"], telemetry
+
+    def explain_or_fail_open(
+        self, case: Case, session: Session, log: DetectionLog
+    ) -> tuple[AgentAnswer | None, Telemetry]:
+        """Для сервиса: при сбое LLM — fail-open вместо исключения (оценка зовёт explain)."""
+        try:
+            return self.explain(case, session, log)
+        except Exception as exc:
+            return fail_open(case, failure_reason(exc)), Telemetry()
 
     def mermaid(self) -> str:
         return self.graph.get_graph().draw_mermaid()

@@ -29,6 +29,11 @@ _DIRECTION = {"in": "пользователь", "out": "бот"}
 def export(args) -> None:
     rows = [json.loads(line) for line in args.answers.read_text("utf-8").splitlines()]
     rows = [r for r in rows if r.get("answer")]
+    if args.judged:  # только ответы, которые уже оценил судья, — чтобы было с чем сравнить
+        judged = {
+            json.loads(line)["case_id"] for line in args.judged.read_text("utf-8").splitlines()
+        }
+        rows = [r for r in rows if r["case_id"] in judged]
     random.Random(args.seed).shuffle(rows)
     context = load_context(args.logs)
     args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -111,6 +116,7 @@ def main() -> int:
     e.add_argument("--n", type=int, default=30)
     e.add_argument("--seed", type=int, default=21)
     e.add_argument("--out", type=Path, default=Path("runs/review/sheet.csv"))
+    e.add_argument("--judged", type=Path, help="judge.jsonl: выгружать только оценённые судьёй")
     a = sub.add_parser("agreement")
     a.add_argument("--sheet", type=Path, required=True)
     a.add_argument("--judge", type=Path, required=True)

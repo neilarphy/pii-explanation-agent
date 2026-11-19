@@ -65,6 +65,7 @@ class Reply:
     tool_calls: tuple[ToolCall, ...] = ()
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    cost: float = 0.0  # USD, как его считает провайдер (usage.cost); 0 — не сообщил
 
 
 Chat = Callable[[list[dict], list[dict] | None], Reply]
@@ -89,6 +90,7 @@ def chat_from_env(model: str | None = None) -> Chat:
             ),
             prompt_tokens=usage.prompt_tokens if usage else 0,
             completion_tokens=usage.completion_tokens if usage else 0,
+            cost=float(getattr(usage, "cost", None) or 0),
         )
 
     return chat

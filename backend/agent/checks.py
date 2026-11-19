@@ -267,6 +267,24 @@ def join_across_turns(
     return None
 
 
+_NUMERIC_TYPES = {"PAYMENT_CARD", "PHONE", "BANK_ACCOUNT", "NATIONAL_ID", "PASSPORT"}
+_ANY_DIGIT_WORD = re.compile(rf"(?i)(?<!\w){_DIGIT_WORD}(?!\w)")
+_SERIES = re.compile(r"(?<!\w)[A-ZА-ЯЁ]{1,4}(?!\w)")  # «II-МЮ» — серия документа, а не слово
+
+
+def names_a_type(pii_type: str, text: str) -> bool:
+    """Фрагмент числового типа без цифр, цифр словами и серий — название данных, не значение.
+
+    «номер телефона», «карту», «паспорт»: детектор принял слово за сам номер.
+    """
+    return (
+        pii_type in _NUMERIC_TYPES
+        and not any(ch.isdigit() for ch in text)
+        and not _ANY_DIGIT_WORD.search(text)
+        and not _SERIES.search(text)
+    )
+
+
 def format_check(pii_type: str, text: str) -> bool | None:
     """True/False — формат подходит/не подходит; None — для этого типа проверки нет."""
     if pii_type == "EMAIL":

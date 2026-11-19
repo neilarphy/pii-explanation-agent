@@ -8,14 +8,17 @@
 import json
 from dataclasses import dataclass
 
+from backend.agent.agent import CODE_EVIDENCE
 from backend.agent.cases import Case
 from backend.agent.prompt import build_messages
 from backend.schemas import AgentAnswer, DetectionLog, Session
 
 JUDGE_PROMPT = """\
 Ты проверяешь работу агента, который разбирает срабатывания детектора персональных данных.
-Тебе дают то же, что видел агент (диалог, находка, данные детектора, проверки кодом), и
-ответ агента. Оцени ответ строго по трём вопросам.
+Тебе дают инструкцию, по которой работал агент, то, что он видел (диалог, находка, данные
+детектора, проверки кодом), и его ответ. Правила из инструкции агента — тоже основание для
+утверждений. Строки evidence, которые добавляет код (id кандидатов и т. п.), убраны — их
+проверяет код. Оцени ответ строго по трём вопросам.
 
 1. faithful — каждое утверждение в explanation подтверждается диалогом, данными детектора
    или проверками кодом. Ничего не выдумано: ни фактов о диалоге, ни score, ни правил.
@@ -26,8 +29,8 @@ JUDGE_PROMPT = """\
    очевидно другие случаи; 0 — если нет.
 
 Отдельно — verdict_ok: согласен ли ты с вердиктом и категорией агента (1/0).
-Политика: маскировать нужно ПДн по 152-ФЗ (pii) и секреты (sensitive: CVC, коды, токены);
-реквизиты организаций, номера заказов, служебные контакты — none.
+Политика — та же, что в инструкции агента: маскировать ПДн по 152-ФЗ (pii) и секреты
+(sensitive: CVC, коды, токены); реквизиты организаций, номера заказов, служебные контакты — none.
 
 Ответ — один JSON-объект без текста вокруг:
 {"faithful": 0|1, "citations_ok": 0|1, "recommendation_ok": 0|1|"n/a", "verdict_ok": 0|1,
@@ -46,11 +49,17 @@ class Verdicts:
 
 
 def judge_messages(
-    case: Case, session: Session, log: DetectionLog, answer: AgentAnswer
+    case: Case, session: Session, log: DetectionLog, answer: AgentAnswer, facts: bool = True
 ) -> list[dict[str, str]]:
-    seen = build_messages(case, session, log)[1]["content"]  # ровно то, что видел агент
+    # ровно то, что видел агент: голая модель (facts=False) фактов кода не видела
+    instruction, seen = (m["content"] for m in build_messages(case, session, log, facts=facts))
     shown = answer.model_dump(mode="json", exclude={"entity_id"})
-    body = f"{seen}\n\nОтвет агента:\n{json.dumps(shown, ensure_ascii=False, indent=1)}"
+    shown["evidence"] = [e for e in shown["evidence"] if not e.startswith(CODE_EVIDENCE)]
+    body = (
+        f"Инструкция, по которой работал агент:\n{instruction}\n\n"
+        f"Что видел агент:\n{seen}\n\n"
+        f"Ответ агента:\n{json.dumps(shown, ensure_ascii=False, indent=1)}"
+    )
     return [{"role": "system", "content": JUDGE_PROMPT}, {"role": "user", "content": body}]
 
 
