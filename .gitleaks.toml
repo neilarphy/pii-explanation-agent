@@ -5,7 +5,7 @@
 useDefault = true
 
 [[allowlists]]
-description = "синтетические токены sk_live_ в сгенерированных сценариях"
+description = "синтетические токены sk_live_ в сценариях и в материалах разметки из них"
 condition = "AND"
-paths = ['''^data/scenarios/.*\.jsonl$''']
+paths = ['''^data/scenarios/.*\.jsonl$''', '''^data/labeling/.*\.(csv|html)$''']
 regexes = ['''sk_live_[0-9a-f]{32}''']

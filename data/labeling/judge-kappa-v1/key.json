@@ -1,0 +1,242 @@
+{
+ "r01": {
+  "source": "main-domain",
+  "case_id": "pb-chat_063-t0-e1"
+ },
+ "r02": {
+  "source": "main-domain",
+  "case_id": "pb-bank_071-t0-e1"
+ },
+ "r03": {
+  "source": "main-scenarios",
+  "case_id": "sc-secrets-3-t4-e1"
+ },
+ "r04": {
+  "source": "qwen30b",
+  "case_id": "sc-test_card-3-t3-e1"
+ },
+ "r05": {
+  "source": "gemma",
+  "case_id": "sc-injection-4-t0-e1"
+ },
+ "r06": {
+  "source": "qwen30b",
+  "case_id": "sc-correction-5-t0-e1"
+ },
+ "r07": {
+  "source": "qwen30b",
+  "case_id": "sc-bot_echo-5-t0-s1"
+ },
+ "r08": {
+  "source": "qwen30b",
+  "case_id": "sc-secrets-5-t0-c3"
+ },
+ "r09": {
+  "source": "qwen30b",
+  "case_id": "sc-injection-5-t0-e1"
+ },
+ "r10": {
+  "source": "gemma",
+  "case_id": "sc-split_phone-5-t0-e1"
+ },
+ "r11": {
+  "source": "main-domain",
+  "case_id": "pb-del_005-t0-e4"
+ },
+ "r12": {
+  "source": "main-domain",
+  "case_id": "pb-re_052-t0-s1"
+ },
+ "r13": {
+  "source": "main-domain",
+  "case_id": "pb-re_099-t0-c1"
+ },
+ "r14": {
+  "source": "qwen30b",
+  "case_id": "sc-service_contacts-1-t3-e1"
+ },
+ "r15": {
+  "source": "main-domain",
+  "case_id": "pb-dialog_073-t2-e2"
+ },
+ "r16": {
+  "source": "qwen30b",
+  "case_id": "sc-test_card-2-t2-e1"
+ },
+ "r17": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-1660-t0-e1"
+ },
+ "r18": {
+  "source": "main-scenarios",
+  "case_id": "sc-obfuscated_email-3-t0-c2"
+ },
+ "r19": {
+  "source": "main-scenarios",
+  "case_id": "sc-bot_echo-2-t0-s1"
+ },
+ "r20": {
+  "source": "gemma",
+  "case_id": "sc-test_card-4-t0-e1"
+ },
+ "r21": {
+  "source": "main-domain",
+  "case_id": "pb-re_090-t0-c2"
+ },
+ "r22": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-76-t0-e1"
+ },
+ "r23": {
+  "source": "main-scenarios",
+  "case_id": "sc-correction-1-t0-e1"
+ },
+ "r24": {
+  "source": "main-scenarios",
+  "case_id": "sc-obfuscated_email-2-t2-e1"
+ },
+ "r25": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-444-t0-e1"
+ },
+ "r26": {
+  "source": "main-scenarios",
+  "case_id": "sc-secrets-4-t0-c3"
+ },
+ "r27": {
+  "source": "gemma",
+  "case_id": "sc-correction-3-t0-e1"
+ },
+ "r28": {
+  "source": "gemma",
+  "case_id": "sc-secrets-1-t1-e1"
+ },
+ "r29": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-1696-t0-c6"
+ },
+ "r30": {
+  "source": "qwen30b",
+  "case_id": "sc-service_contacts-3-t1-e1"
+ },
+ "r31": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-2270-t0-e1"
+ },
+ "r32": {
+  "source": "main-scenarios",
+  "case_id": "sc-ip_vs_company-1-t0-e2"
+ },
+ "r33": {
+  "source": "gemma",
+  "case_id": "sc-obfuscated_email-2-t1-e1"
+ },
+ "r34": {
+  "source": "gemma",
+  "case_id": "sc-ip_vs_company-1-t0-e2"
+ },
+ "r35": {
+  "source": "qwen30b",
+  "case_id": "sc-bot_echo-5-t2-e1"
+ },
+ "r36": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-1546-t0-e4"
+ },
+ "r37": {
+  "source": "main-domain",
+  "case_id": "pb-del_062-t0-c1"
+ },
+ "r38": {
+  "source": "gemma",
+  "case_id": "sc-third_party-5-t2-e3"
+ },
+ "r39": {
+  "source": "main-scenarios",
+  "case_id": "sc-obfuscated_email-2-t0-e1"
+ },
+ "r40": {
+  "source": "main-domain",
+  "case_id": "pb-dialog_047-t1-e1"
+ },
+ "r41": {
+  "source": "main-domain",
+  "case_id": "pb-dialog_097-t1-e1"
+ },
+ "r42": {
+  "source": "qwen30b",
+  "case_id": "sc-obfuscated_email-4-t0-e2"
+ },
+ "r43": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-324-t0-e2"
+ },
+ "r44": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-1976-t0-c7"
+ },
+ "r45": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-544-t0-e2"
+ },
+ "r46": {
+  "source": "qwen30b",
+  "case_id": "sc-service_contacts-4-t1-e2"
+ },
+ "r47": {
+  "source": "gemma",
+  "case_id": "sc-third_party-1-t0-e4"
+ },
+ "r48": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-544-t0-e3"
+ },
+ "r49": {
+  "source": "gemma",
+  "case_id": "sc-test_card-2-t2-e1"
+ },
+ "r50": {
+  "source": "main-domain",
+  "case_id": "pb-dialog_077-t1-e1"
+ },
+ "r51": {
+  "source": "gemma",
+  "case_id": "sc-service_contacts-5-t1-e1"
+ },
+ "r52": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-2137-t0-c6"
+ },
+ "r53": {
+  "source": "main-scenarios",
+  "case_id": "sc-third_party-1-t0-e2"
+ },
+ "r54": {
+  "source": "main-scenarios",
+  "case_id": "sc-correction-3-t2-c2"
+ },
+ "r55": {
+  "source": "main-domain",
+  "case_id": "pb-del_085-t0-e1"
+ },
+ "r56": {
+  "source": "gemma",
+  "case_id": "sc-third_party-3-t2-e1"
+ },
+ "r57": {
+  "source": "main-scenarios",
+  "case_id": "sc-bot_echo-3-t3-e1"
+ },
+ "r58": {
+  "source": "main-scenarios",
+  "case_id": "sc-obfuscated_email-1-t0-e2"
+ },
+ "r59": {
+  "source": "main-redmadrobot",
+  "case_id": "rmr-2577-t0-c5"
+ },
+ "r60": {
+  "source": "qwen30b",
+  "case_id": "sc-test_card-5-t0-e1"
+ }
+}
