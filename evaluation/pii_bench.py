@@ -27,6 +27,15 @@ TYPE_MAP: dict[str, str | None] = {
     "OGRN": None,
     "OGRNIP": None,
     "TOKEN": None,
+    # документов ниже в профиле детектора пока нет (задача в PR #5): до правки — полнота 0,
+    # после — прирост виден в той же таблице
+    "DRIVER_LICENSE": "DRIVER_LICENSE",
+    "BIRTH_CERTIFICATE": "BIRTH_CERTIFICATE",
+    "MILITARY_ID": "MILITARY_ID",
+    "OMS": "OMS",
+    # типы профиля, которых нет в pii-bench и redmadrobot, — для своих наборов (test-v1)
+    "DATE_OF_BIRTH": "DATE_OF_BIRTH",
+    "BANK_ACCOUNT": "BANK_ACCOUNT",
 }
 
 # Категория данных по 152-ФЗ: pii — ПДн человека, sensitive — не ПДн, но маскируем,
