@@ -77,7 +77,7 @@ def test_prompt_contains_dialog_and_detector_facts(session, log, reference):
     card, *_, phone = seen
     assert "номер заказа 4276 1234 5678 9014" in card
     assert "rule_id=card_pan_v1" in card
-    assert "проверки кодом: номер карты: Луна сходится" in card
+    assert "проверки кодом: форма как у номера карты" in card
     assert "детектор отклонил фрагмент" in phone
     assert "score=0.31" in phone
 

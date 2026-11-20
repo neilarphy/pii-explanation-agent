@@ -9,13 +9,22 @@ from backend.agent.cases import build_cases
 from backend.agent.harness import (
     MAX_RETRIES,
     MODES,
+    Cascade,
     Flags,
     Harness,
     check_value,
     search_session,
 )
 from backend.agent.llm import Reply, ToolCall
-from backend.schemas import Candidate, DetectionLog, Message, ModelConfig, Session, Verdict
+from backend.schemas import (
+    Candidate,
+    DetectionLog,
+    Entity,
+    Message,
+    ModelConfig,
+    Session,
+    Verdict,
+)
 
 SESSION = Session(
     id="split",
@@ -106,12 +115,13 @@ def test_bare_model_gets_no_code_and_keeps_its_verdict():
     assert not any("код подтвердил" in e for e in answer.evidence)
 
 
-def test_facts_mode_downgrades_what_code_did_not_confirm():
-    """Факты есть, а склейки в диалоге нет — пропуск по одному фрагменту понижается."""
+def test_harness_does_not_downgrade_unconfirmed_miss():
+    """Склейки нет, формат фрагмента не сходится — харнесс всё равно не понижает (итерация 7):
+    понижение кодом испортило 16 верных ответов и исправило 3. Конвейер итерации 4 — понижает."""
     lone = SESSION.model_copy(update={"messages": [m for m in SESSION.messages if m.turn != 0]})
     chat, _ = scripted({**GOOD, "citations": [{"turn": 2, "quote": "855707"}]})
     answer, _ = Harness(chat, MODES["facts"]).explain(case(), lone, LOG)
-    assert answer.verdict == Verdict.UNCERTAIN
+    assert answer.verdict == Verdict.MISSED_PII
 
 
 def test_wrong_quote_goes_back_to_the_model():
@@ -221,3 +231,69 @@ def test_session_survives_a_broken_answer():
     ((only, answer),) = explain_session(SESSION, LOG, lambda messages: "не json")
     assert only.id == case().id and answer.verdict == Verdict.UNCERTAIN
     assert "сбой агента, fail-open" in answer.evidence
+
+
+def test_recommendation_must_address_the_one_who_erred():
+    """Пропуск отклонила модель ner — threshold для правила не годится, ответ возвращается."""
+    wrong = {
+        **GOOD,
+        "recommendation": {
+            "kind": "threshold",
+            "target": "phone_ru_v1",
+            "change": "снизить порог",
+            "rationale": "ниже порога",
+        },
+    }
+    right = {**wrong, "recommendation": {**wrong["recommendation"], "target": "ner"}}
+    chat, seen = scripted(wrong, right)
+    answer, telemetry = Harness(chat).explain(case(), SESSION, LOG)
+    assert "threshold бывает только у модели ner" in seen[1][-1]["content"]
+    assert telemetry.retries == 1 and answer.recommendation.target == "ner"
+
+
+def test_recommendation_is_dropped_when_detector_was_right():
+    """Детектор принял фрагмент верно — рекомендации быть не должно, код её убирает без вызова."""
+    accepted = LOG.candidates[0].model_copy(update={"decision": "accepted", "entity_id": "e1"})
+    entity = Entity(
+        id="e1", turn=2, start=11, end=17, text="855707", type="PHONE", candidate_ids=["c1"]
+    )
+    log = LOG.model_copy(update={"candidates": [accepted], "entities": [entity]})
+    (only,) = build_cases(log, SESSION)
+    rec = {
+        "kind": "retrain",
+        "target": "ner",
+        "change": "дообучить",
+        "rationale": "на всякий случай",
+    }
+    chat, _ = scripted({**GOOD, "verdict": "true_pii", "recommendation": rec})
+    answer, telemetry = Harness(chat).explain(only, SESSION, log)
+    assert answer.verdict == Verdict.TRUE_PII and answer.recommendation is None
+    assert telemetry.llm_calls == 1
+
+
+def test_cascade_takes_small_model_when_answers_agree():
+    small, _ = scripted(GOOD, GOOD)
+    big, big_seen = scripted()
+    answer, telemetry = Cascade(Harness(small), Harness(big)).explain(case(), SESSION, LOG)
+    assert answer.verdict == Verdict.MISSED_PII and big_seen == []
+    assert (telemetry.llm_calls, telemetry.escalated) == (2, 0)
+
+
+def test_cascade_escalates_disagreement_to_big_model():
+    # второй ответ — none: харнесс возвращает противоречие, модель настаивает (2 вызова)
+    small, _ = scripted(GOOD, NONE, NONE)
+    big, _ = scripted(GOOD)
+    answer, telemetry = Cascade(Harness(small), Harness(big)).explain(case(), SESSION, LOG)
+    assert answer.verdict == Verdict.MISSED_PII and telemetry.escalated == 1
+    assert telemetry.llm_calls == 4
+    assert any(
+        e.startswith("каскад: маленькая модель ответила missed_pii / no_issue")
+        for e in answer.evidence
+    )
+
+
+def test_cascade_without_big_model_sends_disagreement_to_human():
+    small, _ = scripted(GOOD, NONE, NONE)
+    answer, telemetry = Cascade(Harness(small)).explain(case(), SESSION, LOG)
+    assert answer.verdict == Verdict.UNCERTAIN and answer.category.value == "pii"
+    assert "по-разному" in answer.explanation and telemetry.escalated == 1

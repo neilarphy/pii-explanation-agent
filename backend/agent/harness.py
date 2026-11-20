@@ -32,6 +32,7 @@ from backend.agent.cases import Case
 from backend.agent.checks import format_check, identify, names_a_type, resolve_citations
 from backend.agent.llm import Chat, Reply
 from backend.agent.prompt import build_messages, enclosing_value, joined_value
+from backend.agent.recommend import FIXES, recommendation_problems
 from backend.schemas import (
     AgentAnswer,
     Category,
@@ -75,6 +76,7 @@ class Telemetry:
     completion_tokens: int = 0
     cost: float = 0.0  # USD по данным провайдера
     seconds: float = 0.0
+    escalated: int = 0  # каскад: ответы маленькой модели разошлись, решала большая или человек
 
     def add(self, reply: Reply) -> "Telemetry":
         return replace(
@@ -264,9 +266,16 @@ def build_graph(chat: Chat, flags: Flags = DEFAULT):
         data, found = problems_in(state["raw"], state["session"])
         if not flags.verify:
             return {"data": data, "problems": []}
-        if flags.facts and data is not None and state["telemetry"].retries == 0:
-            # противоречие фактам — один раз: настаивает — решение за моделью
-            found += contradictions(data, state["case"], state["confirmed"])
+        if data is not None and state["telemetry"].retries == 0:
+            # противоречие фактам и логу — один раз: настаивает — решение за моделью
+            if flags.facts:
+                found += contradictions(data, state["case"], state["confirmed"])
+            found += [
+                f"recommendation: {p}"
+                for p in recommendation_problems(
+                    data.get("recommendation"), data.get("verdict"), state["case"], state["log"]
+                )
+            ]
         if found:
             feedback = (
                 "Ответ не прошёл проверку кодом:\n- "
@@ -294,11 +303,15 @@ def build_graph(chat: Chat, flags: Flags = DEFAULT):
         data = state.get("data")
         if data is None:
             raise ValueError(f"В ответе LLM нет разбираемого JSON: {state['raw'][:200]!r}")
-        if flags.verify and any(p.startswith("recommendation") for p in state["problems"]):
+        if flags.verify and any(
+            p.startswith("recommendation не по схеме") for p in state["problems"]
+        ):
             data = {**data, "recommendation": None}  # повторы кончились — ответ важнее рекомендации
-        answer = finalize(
-            state["case"], state["session"], data, state["confirmed"], guard=flags.facts
-        )
+        # Понижение пропуска кодом выключено: в итерациях 4–6 оно испортило 16 верных ответов
+        # и исправило 3 (все у маленьких моделей). Неуверенность — в каскаде (расхождение ответов).
+        answer = finalize(state["case"], state["session"], data, state["confirmed"], guard=False)
+        if flags.verify and answer and answer.verdict.value not in FIXES and answer.recommendation:
+            answer = answer.model_copy(update={"recommendation": None})  # детектор не ошибся
         confirmed = state["confirmed"]
         if answer and confirmed and confirmed != _fragment(state["case"]):
             answer = answer.model_copy(
@@ -375,3 +388,68 @@ class Harness:
 
     def mermaid(self) -> str:
         return self.graph.get_graph().draw_mermaid()
+
+
+def _verdict(answer: AgentAnswer | None) -> str:
+    return answer.verdict.value if answer else "no_issue"
+
+
+def _total(a: Telemetry, b: Telemetry) -> Telemetry:
+    return Telemetry(**{f: getattr(a, f) + getattr(b, f) for f in Telemetry.__dataclass_fields__})
+
+
+def disagreement(case: Case, answers: list[AgentAnswer | None]) -> AgentAnswer:
+    """Ответы модели разошлись, большой модели нет — «не уверен», решает человек."""
+    verdicts = " / ".join(_verdict(a) for a in answers)
+    given = [a for a in answers if a]
+    masking = [a for a in given if a.category != Category.NONE]
+    base = (masking or given)[0] if given else None
+    return AgentAnswer(
+        entity_id=case.entity_id,
+        verdict=Verdict.UNCERTAIN,
+        category=base.category if base else Category.PII,
+        confidence=0.0,
+        explanation=(
+            f"Модель ответила по-разному ({verdicts}). "
+            + (f"Один из ответов: {base.explanation}" if base else "")
+        ).strip(),
+        citations=base.citations if base else [],
+        evidence=[*(base.evidence if base else []), f"каскад: ответы разошлись ({verdicts})"],
+        note="Нужен человек: модель сама себе противоречит.",
+    )
+
+
+class Cascade:
+    """Маленькая модель с харнессом отвечает votes раз (итерация 7).
+
+    Совпали вердикты — её ответ. Разошлись — решает большая модель, а без неё находка уходит
+    человеку как «не уверен». Уверенность модели (confidence) для этого не годится: на
+    ошибках маленьких моделей она выше, чем на верных ответах; расхождение ответов ловит
+    33–47% ошибок, затрагивая 7–12% находок.
+    """
+
+    def __init__(self, small: Harness, big: Harness | None = None, votes: int = 2):
+        self.small, self.big, self.votes = small, big, votes
+
+    def explain(
+        self, case: Case, session: Session, log: DetectionLog
+    ) -> tuple[AgentAnswer | None, Telemetry]:
+        started = time.perf_counter()
+        answers, telemetry = [], Telemetry()
+        for _ in range(self.votes):
+            answer, spent = self.small.explain(case, session, log)
+            answers.append(answer)
+            telemetry = _total(telemetry, spent)
+        verdicts = [_verdict(a) for a in answers]
+        if len(set(verdicts)) == 1:
+            result = answers[0]
+        elif self.big:
+            result, spent = self.big.explain(case, session, log)
+            telemetry = replace(_total(telemetry, spent), escalated=1)
+            if result:
+                note = f"каскад: маленькая модель ответила {' / '.join(verdicts)}, решала большая"
+                result = result.model_copy(update={"evidence": [*result.evidence, note]})
+        else:
+            result = disagreement(case, answers)
+            telemetry = replace(telemetry, escalated=1)
+        return result, replace(telemetry, seconds=round(time.perf_counter() - started, 2))

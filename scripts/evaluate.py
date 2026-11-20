@@ -23,14 +23,14 @@ from pathlib import Path
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import build_cases
-from backend.agent.harness import MODES, Harness, Telemetry
+from backend.agent.harness import MODES, Cascade, Harness, Telemetry
 from backend.agent.llm import chat_from_env
 from backend.schemas import DetectionLog, Session
 from evaluation.metrics import expected, score_detector
 from evaluation.pii_bench import gold_from_json
 
-VERDICTS = ["false_positive", "true_pii", "missed_pii", "no_issue"]
-COLUMNS = [*VERDICTS, "uncertain", "ошибка"]
+VERDICTS = ["false_positive", "true_pii", "missed_pii", "no_issue", "uncertain"]
+COLUMNS = [*VERDICTS, "ошибка"]
 ATTEMPTS = 3
 
 
@@ -126,14 +126,18 @@ def pipeline(chat):
     return explain
 
 
-AGENTS = ["pipeline", *MODES]
+AGENTS = ["pipeline", *MODES, "cascade"]
 
 
-def make_agent(agent: str, model: str | None):
-    """Агент по имени: конвейер итерации 4 или режим харнесса (bare, facts, harness, tools)."""
+def make_agent(agent: str, model: str | None, big_model: str | None = None, votes: int = 2):
+    """Агент по имени: конвейер итерации 4, режим харнесса (bare, facts, harness, tools) или
+    каскад (маленькая модель votes раз, при расхождении — big_model или «не уверен»)."""
     chat = chat_from_env(model)
     if agent == "pipeline":
         return pipeline(chat)
+    if agent == "cascade":
+        big = Harness(chat_from_env(big_model)) if big_model else None
+        return Cascade(Harness(chat), big, votes).explain
     return Harness(chat, MODES[agent]).explain
 
 
@@ -262,6 +266,8 @@ def main() -> int:
         help="конвейер итерации 4 или режим харнесса: bare, facts, harness, tools",
     )
     parser.add_argument("--model", help="модель вместо LLM_MODEL")
+    parser.add_argument("--big-model", help="каскад: большая модель для расхождений")
+    parser.add_argument("--votes", type=int, default=2, help="каскад: ответов маленькой модели")
     parser.add_argument("--out", type=Path, default=Path("runs/eval"))
     args = parser.parse_args()
 
@@ -276,7 +282,7 @@ def main() -> int:
     elif args.per_class:
         picked, sizes = sample_cases(records, args.per_class, args.seed)
     if args.same_as or args.per_class:
-        explain = make_agent(args.agent, args.model)
+        explain = make_agent(args.agent, args.model, args.big_model, args.votes)
         report[1:1] = ["", f"Агент: {args.agent}, модель {args.model or 'из LLM_MODEL'}."]
         rows = run_agent(picked, args.workers, explain)
         (args.out / "agent_answers.jsonl").write_text(
