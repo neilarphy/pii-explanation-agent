@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Разбор срабатываний</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6b66; --line: #e2e2dc;
+    --mark: #ffe08a; --accent: #2f5fd0; --agent: #eef3ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --card: #20201e; --ink: #ececea; --muted: #a3a39d; --line: #34342f;
+      --mark: #6b5310; --accent: #8fb0ff; --agent: #1d2638; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin: 12px 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .turn { margin: 6px 0; }
+  .who { font-weight: 600; margin-right: 6px; }
+  mark { background: var(--mark); color: inherit; padding: 0 2px; border-radius: 3px; }
+  .agent { background: var(--agent); }
+  .choices { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+  button, input, select { font: inherit; }
+  .choice { border: 1px solid var(--line); background: var(--card); color: var(--ink);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  .choice[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); }
+  .primary { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer; }
+  .primary:disabled { opacity: .4; cursor: default; }
+  input, select { padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  ul { margin: 6px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script>
+const ITEMS = /*ITEMS*/[];
+const app = document.getElementById("app");
+const state = { name: "", variant: "1", queue: [], i: 0, shownAt: 0, answers: [] };
+
+function el(tag, attrs = {}, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") node.className = v; else if (k.startsWith("on")) node[k] = v; else node.setAttribute(k, v);
+  }
+  for (const c of children) node.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return node;
+}
+
+function start() {
+  app.replaceChildren(
+    el("h1", {}, "Разбор срабатываний детектора ПДн"),
+    el("div", { class: "card" },
+      el("p", {}, "Вы — оператор. Детектор персональных данных отметил (или не отметил) фрагмент в переписке. Для каждого фрагмента решите: маскировать его или нет."),
+      el("p", {}, "Маскируем персональные данные человека по 152-ФЗ (имя, телефон, почта, адрес, документы, номер карты) и секреты (CVC, коды из СМС, токены). Реквизиты организаций, номера заказов, служебные контакты и тестовые номера — не маскируем."),
+      el("p", {}, "Находок 24, в двух частях. В одной части вы видите только решение детектора, в другой — еще и объяснение агента. Агент иногда ошибается."),
+      el("p", { class: "muted" }, "Отвечайте в своем темпе, не возвращайтесь назад и не ищите ответы вне страницы. Время на каждую находку записывается.")),
+    el("div", { class: "card" },
+      el("p", {}, "Имя: ", el("input", { id: "name", placeholder: "например, misha" })),
+      el("p", {}, "Вариант (скажет организатор): ",
+        el("select", { id: "variant" }, el("option", { value: "1" }, "1"), el("option", { value: "2" }, "2"))),
+      el("button", { class: "primary", onclick: begin }, "Начать")));
+}
+
+function begin() {
+  state.name = document.getElementById("name").value.trim() || "anon";
+  state.variant = document.getElementById("variant").value;
+  const withAgent = state.variant === "1" ? "B" : "A";
+  const halves = ["A", "B"];
+  state.queue = [];
+  for (const h of halves) {
+    const cond = h === withAgent ? "agent" : "detector";
+    state.queue.push({ intro: cond });
+    for (const it of ITEMS.filter(x => x.half === h)) state.queue.push({ id: it.id, cond });
+  }
+  state.i = 0; state.answers = []; next();
+}
+
+function dialog(it) {
+  const box = el("div", { class: "card" });
+  for (const m of it.dialog) {
+    const line = el("div", { class: "turn" }, el("span", { class: "who" }, m.who + ":"));
+    if (m.turn === it.mark.turn) {
+      line.append(m.text.slice(0, it.mark.start), el("mark", {}, m.text.slice(it.mark.start, it.mark.end)), m.text.slice(it.mark.end));
+    } else line.append(m.text);
+    box.append(line);
+  }
+  return box;
+}
+
+function next() {
+  if (state.i >= state.queue.length) return finish();
+  const step = state.queue[state.i];
+  if (step.intro) {
+    const text = step.intro === "agent"
+      ? "В этой части рядом с решением детектора — ответ агента: его решение и объяснение."
+      : "В этой части вы видите только диалог и решение детектора.";
+    app.replaceChildren(el("h1", {}, "Новая часть"), el("div", { class: "card" }, el("p", {}, text)),
+      el("button", { class: "primary", onclick: () => { state.i++; next(); } }, "Дальше"));
+    return;
+  }
+  const it = ITEMS.find(x => x.id === step.id);
+  const done = state.answers.filter(a => a.item).length;
+  let decision = null, confidence = null;
+  const go = el("button", { class: "primary", disabled: "" }, "Ответить");
+  const refresh = () => { go.disabled = !(decision && confidence); };
+  const pick = (group, value, setter) => (ev) => {
+    for (const b of group.querySelectorAll("button")) b.setAttribute("aria-pressed", "false");
+    ev.target.setAttribute("aria-pressed", "true"); setter(value); refresh();
+  };
+  const decisions = el("div", { class: "choices" });
+  for (const d of ["маскировать", "не маскировать", "не уверен"])
+    decisions.append(el("button", { class: "choice", "aria-pressed": "false", onclick: pick(decisions, d, v => decision = v) }, d));
+  const conf = el("div", { class: "choices" });
+  for (const c of [1, 2, 3, 4, 5])
+    conf.append(el("button", { class: "choice", "aria-pressed": "false", onclick: pick(conf, c, v => confidence = v) }, c));
+  const parts = [
+    el("p", { class: "muted" }, `Находка ${done + 1} из ${ITEMS.length}`),
+    dialog(it),
+    el("div", { class: "card" }, el("b", {}, "Фрагмент: "), it.fragment, el("p", {}, it.detector)),
+  ];
+  if (step.cond === "agent") {
+    const cites = el("ul", {}, ...it.agent.citations.map(c => el("li", {}, c)));
+    parts.push(el("div", { class: "card agent" },
+      el("p", {}, el("b", {}, "Агент: "), it.agent.decision),
+      el("p", {}, it.agent.explanation), el("p", { class: "muted" }, "Цитаты:"), cites));
+  }
+  go.onclick = () => {
+    state.answers.push({ item: it.id, half: it.half, condition: step.cond, decision, confidence,
+      seconds: Math.round((performance.now() - state.shownAt) / 100) / 10 });
+    state.i++; next();
+  };
+  parts.push(el("div", { class: "card" }, el("p", {}, "Ваше решение:"), decisions,
+    el("p", {}, "Насколько уверены (1 — наугад, 5 — точно):"), conf, go));
+  app.replaceChildren(...parts);
+  window.scrollTo(0, 0);
+  state.shownAt = performance.now();
+}
+
+function finish() {
+  const head = ["participant", "variant", "item", "half", "condition", "decision", "confidence", "seconds"];
+  const rows = state.answers.map(a => [state.name, state.variant, a.item, a.half, a.condition, a.decision, a.confidence, a.seconds]);
+  const csv = "﻿" + [head, ...rows].map(r => r.map(v => `"${String(v).replaceAll('"', '""')}"`).join(",")).join("\n");
+  const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+  const file = `results-${state.name}-v${state.variant}.csv`;
+  app.replaceChildren(el("h1", {}, "Готово, спасибо!"),
+    el("div", { class: "card" }, el("p", {}, "Скачайте файл с ответами и отправьте организатору:"),
+      el("a", { href: url, download: file, class: "primary", style: "display:inline-block;text-decoration:none" }, "Скачать " + file)));
+}
+
+start();
+</script>
+</body>
+</html>

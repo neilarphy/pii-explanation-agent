@@ -1,0 +1,146 @@
+{
+ "A01": {
+  "source": "gemma",
+  "case_id": "sc-obfuscated_email-2-t2-e1",
+  "gold": "не маскировать",
+  "agent_right": false
+ },
+ "A02": {
+  "source": "main-scenarios",
+  "case_id": "sc-secrets-5-t0-c3",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A03": {
+  "source": "main-scenarios",
+  "case_id": "sc-bot_echo-2-t1-s1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A04": {
+  "source": "main-scenarios",
+  "case_id": "sc-third_party-3-t0-e2",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A05": {
+  "source": "main-scenarios",
+  "case_id": "sc-bot_echo-3-t0-s1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A06": {
+  "source": "main-scenarios",
+  "case_id": "sc-bot_echo-1-t1-s1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A07": {
+  "source": "main-domain",
+  "case_id": "pb-del_068-t0-c1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A08": {
+  "source": "main-domain",
+  "case_id": "pb-re_088-t0-e1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A09": {
+  "source": "gemma",
+  "case_id": "sc-bot_echo-5-t2-e1",
+  "gold": "не маскировать",
+  "agent_right": false
+ },
+ "A10": {
+  "source": "qwen30b",
+  "case_id": "sc-obfuscated_email-4-t0-e2",
+  "gold": "маскировать",
+  "agent_right": false
+ },
+ "A11": {
+  "source": "main-domain",
+  "case_id": "pb-bank_090-t0-c1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "A12": {
+  "source": "main-domain",
+  "case_id": "pb-s_auto_069-t0-e1",
+  "gold": "не маскировать",
+  "agent_right": true
+ },
+ "B01": {
+  "source": "main-scenarios",
+  "case_id": "sc-correction-2-t1-e1",
+  "gold": "не маскировать",
+  "agent_right": true
+ },
+ "B02": {
+  "source": "main-domain",
+  "case_id": "pb-s_auto_063-t0-e1",
+  "gold": "не маскировать",
+  "agent_right": true
+ },
+ "B03": {
+  "source": "main-scenarios",
+  "case_id": "sc-secrets-1-t0-c5",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "B04": {
+  "source": "qwen30b",
+  "case_id": "sc-test_card-4-t0-e1",
+  "gold": "не маскировать",
+  "agent_right": false
+ },
+ "B05": {
+  "source": "qwen30b",
+  "case_id": "sc-secrets-3-t4-e1",
+  "gold": "не маскировать",
+  "agent_right": false
+ },
+ "B06": {
+  "source": "main-domain",
+  "case_id": "pb-hr_092-t0-e2",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "B07": {
+  "source": "main-scenarios",
+  "case_id": "sc-ip_vs_company-4-t2-e1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "B08": {
+  "source": "main-domain",
+  "case_id": "pb-ss_009-t0-e3",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "B09": {
+  "source": "main-domain",
+  "case_id": "pb-s_auto_077-t0-e1",
+  "gold": "не маскировать",
+  "agent_right": true
+ },
+ "B10": {
+  "source": "main-domain",
+  "case_id": "pb-re_068-t0-s1",
+  "gold": "маскировать",
+  "agent_right": true
+ },
+ "B11": {
+  "source": "main-scenarios",
+  "case_id": "sc-ip_vs_company-2-t2-e1",
+  "gold": "не маскировать",
+  "agent_right": true
+ },
+ "B12": {
+  "source": "gemma",
+  "case_id": "sc-service_contacts-3-t1-e2",
+  "gold": "не маскировать",
+  "agent_right": false
+ }
+}
