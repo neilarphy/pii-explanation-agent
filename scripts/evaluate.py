@@ -102,6 +102,20 @@ def same_cases(records, previous: Path):
     return picked, pool, ids
 
 
+def wide_cases(records, limit: int, seed: int):
+    """Только находки поиска кодом шире (итерация 8): до limit случайных."""
+    pool: dict[str, int] = dict.fromkeys(VERDICTS, 0)
+    items = []
+    for domain, session, log, gold in records:
+        for case in build_cases(log, session, wide=True):
+            if case.kind == "scan" and case.id.rsplit("-", 1)[-1].startswith("w"):
+                verdict, category = expected(case, gold)
+                pool[verdict] += 1
+                items.append((verdict, category, domain, session, log, case))
+    random.Random(seed).shuffle(items)
+    return items[:limit], pool
+
+
 def pipeline(chat):
     """Конвейер итерации 4 (один вызов LLM) с тем же учётом расхода, что у харнесса."""
 
@@ -268,6 +282,9 @@ def main() -> int:
     parser.add_argument("--model", help="модель вместо LLM_MODEL")
     parser.add_argument("--big-model", help="каскад: большая модель для расхождений")
     parser.add_argument("--votes", type=int, default=2, help="каскад: ответов маленькой модели")
+    parser.add_argument(
+        "--wide", type=int, default=0, help="только находки поиска кодом шире, до N штук"
+    )
     parser.add_argument("--out", type=Path, default=Path("runs/eval"))
     args = parser.parse_args()
 
@@ -279,9 +296,11 @@ def main() -> int:
     previous_ids = None
     if args.same_as:
         picked, sizes, previous_ids = same_cases(records, args.same_as)
+    elif args.wide:
+        picked, sizes = wide_cases(records, args.wide, args.seed)
     elif args.per_class:
         picked, sizes = sample_cases(records, args.per_class, args.seed)
-    if args.same_as or args.per_class:
+    if args.same_as or args.per_class or args.wide:
         explain = make_agent(args.agent, args.model, args.big_model, args.votes)
         report[1:1] = ["", f"Агент: {args.agent}, модель {args.model or 'из LLM_MODEL'}."]
         rows = run_agent(picked, args.workers, explain)

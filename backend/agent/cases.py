@@ -3,7 +3,9 @@
 - entity — сущность, которую детектор принял (вопрос: верно ли);
 - rejected — кандидат, которого детектор отклонил (вопрос: не пропуск ли);
 - scan — фрагмент, который детектор не заметил вовсе, а код нашёл по контрольной
-  сумме или формату (вопрос: не пропуск ли).
+  сумме или формату (вопрос: не пропуск ли);
+- llm — фрагмент, который никто не заметил, а модель назвала, прочитав диалог целиком
+  (`backend/agent/reader.py`, вопрос: не пропуск ли).
 
 Пересекающиеся сущности одного типа («Анна», «Анна Иванова», «Иванова») склеиваются
 в одну находку: агент разбирает имя один раз, а не три.
@@ -12,14 +14,14 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from backend.agent.checks import scan
+from backend.agent.checks import scan, scan_wide
 from backend.schemas import Candidate, DetectionLog, Entity, Session
 
 
 @dataclass(frozen=True)
 class Case:
     id: str
-    kind: Literal["entity", "rejected", "scan"]
+    kind: Literal["entity", "rejected", "scan", "llm"]
     turn: int
     start: int
     end: int
@@ -74,8 +76,13 @@ def _rejected_case(group: list[Candidate]) -> Case:
     )
 
 
-def build_cases(log: DetectionLog, session: Session | None = None) -> list[Case]:
-    """Склеенные сущности, отклонённые кандидаты вне сущностей и (если дана сессия) находки кода."""
+def build_cases(log: DetectionLog, session: Session | None = None, wide: bool = True) -> list[Case]:
+    """Склеенные сущности, отклонённые кандидаты вне сущностей и (если дана сессия) находки кода.
+
+    wide — ещё и поиск кодом шире (`scan_wide`): номер по слову-документу рядом, числа словами,
+    адрес без «д.». Включён с итерации 8: на redmadrobot находит 48% невидимых ПДн при одной лишней
+    находке из 155, на диалогах лишних нет; wide=False — поиск как до итерации 8 (для сравнения).
+    """
     by_id = {c.id: c for c in log.candidates}
     entity_groups = _clusters(list(log.entities), lambda a, b: a.type == b.type)
     cases = [_entity_case(g, by_id) for g in entity_groups]
@@ -90,9 +97,13 @@ def build_cases(log: DetectionLog, session: Session | None = None) -> list[Case]
     if session is not None:
         taken = list(log.entities) + list(log.candidates)
         for m in session.messages:
-            for n, (start, end, check) in enumerate(scan(m.text), 1):
+            found = [("s", hit) for hit in scan(m.text)]
+            found += [("w", hit) for hit in scan_wide(m.text)] if wide else []
+            numbers = {"s": 0, "w": 0}
+            for prefix, (start, end, check) in found:
+                numbers[prefix] += 1
                 span = Case(
-                    id=f"{session.id}-t{m.turn}-s{n}",
+                    id=f"{session.id}-t{m.turn}-{prefix}{numbers[prefix]}",
                     kind="scan",
                     turn=m.turn,
                     start=start,
