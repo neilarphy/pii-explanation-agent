@@ -14,7 +14,7 @@ from pathlib import Path
 
 from backend.agent.llm import client_from_env
 from evaluation.pii_bench import gold_to_json
-from evaluation.scenarios import DOMAINS, SCENARIOS, draw_values, fill, generator_messages
+from evaluation.scenarios import DOMAINS, SETS, draw_values, fill, generator_messages
 
 
 def parse_messages(raw: str) -> list[dict]:
@@ -34,6 +34,7 @@ def main() -> int:
     parser.add_argument("--model", help="модель-генератор (по умолчанию LLM_MODEL)")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--retries", type=int, default=3)
+    parser.add_argument("--set", choices=sorted(SETS), default="v1", help="набор сценариев")
     parser.add_argument("--out", type=Path, default=Path("data/scenarios/scenarios-v1.jsonl"))
     args = parser.parse_args()
 
@@ -41,7 +42,7 @@ def main() -> int:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     written, failed = 0, []
     with args.out.open("w", encoding="utf-8", newline="\n") as out:
-        for scenario in SCENARIOS:
+        for scenario in SETS[args.set]:
             for i in range(args.per_scenario):
                 item_id = f"sc-{scenario.id}-{i + 1}"
                 rng = random.Random(f"{args.seed}-{item_id}")

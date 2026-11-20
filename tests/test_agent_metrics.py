@@ -107,3 +107,34 @@ def test_stability_counts_flips_between_runs():
     assert (s.runs, s.cases, s.flipped) == (3, 9, 1)
     assert s.accuracy == (4 / 9, 4 / 9, 5 / 9)
     assert s.spread == pytest.approx(1 / 18)
+
+
+def test_policy_mismatch_is_not_an_agent_error():
+    from evaluation.agent_metrics import policy_mismatch
+
+    org = row("x", "entity", "true_pii", "false_positive", text="support@megafon.ru")
+    toll = row("y", "entity", "true_pii", "false_positive", text="8-800-555-35-35")
+    card = row("z", "rejected", "missed_pii", "no_issue", text="4111 1111 1111 1111")
+    person = row("w", "entity", "true_pii", "false_positive", text="ivanov@company.ru")
+    agreed = row("v", "entity", "true_pii", "true_pii", text="support@megafon.ru")
+    assert [policy_mismatch(r) for r in (org, toll, card, person, agreed)] == [
+        True,
+        True,
+        True,
+        False,
+        False,
+    ]
+
+
+def test_spaced_org_mailbox_is_a_policy_mismatch():
+    from evaluation.agent_metrics import policy_mismatch
+
+    spaced = row("x", "entity", "true_pii", "false_positive", text="info @ fortress . com . ru")
+    assert policy_mismatch(spaced)
+
+
+def test_ten_digit_inn_is_an_organisation_even_with_explicit_category():
+    from evaluation.pii_bench import GoldSpan
+
+    assert GoldSpan(0, 0, 10, "INN", "7707083893", "pii").category == "none"
+    assert GoldSpan(0, 0, 12, "INN", "500100732259", "pii").category == "pii"
