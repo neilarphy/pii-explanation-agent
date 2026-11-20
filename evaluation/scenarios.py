@@ -383,7 +383,128 @@ AMBIGUOUS: tuple[Scenario, ...] = (
     ),
 )
 
-SETS = {"v1": SCENARIOS, "ambiguous": AMBIGUOUS}
+
+# Невидимые ПДн (итерация 8): значения, которые детектор и поиск кодом не замечают, —
+# имена в падежах и строчными, имя-отчество без фамилии, серия и номер документа в разных
+# репликах, адрес без «ул.» и «д.». И ловушки без ПДн: адрес офиса, IP сервера, отдельный город.
+# Падежные формы генерирует код (таблицы), а не LLM — иначе не будет точной разметки.
+_DATIVE = [
+    "Петровой Анне", "Смирновой Ольге", "Кузнецовой Марии", "Волкову Игорю",
+    "Соколову Дмитрию", "Морозову Сергею", "Лебедевой Елене", "Новикову Алексею",
+]  # fmt: skip
+_GENITIVE = [
+    "Петровой Анны", "Смирновой Ольги", "Кузнецовой Марии", "Волкова Игоря",
+    "Соколова Дмитрия", "Морозова Сергея", "Лебедевой Елены", "Новикова Алексея",
+]  # fmt: skip
+_PATRONYMIC = [
+    "Игорь Ренатович", "Анна Сергеевна", "Дмитрий Александрович", "Ольга Викторовна",
+    "Сергей Павлович", "Елена Игоревна",
+]  # fmt: skip
+_STREET_LOCATIVE = ["Садовой", "Ленина", "Гагарина", "Чехова", "Победы", "Мира", "Пушкина"]
+_MILITARY_SERIES = ["АВ", "МЗ", "ЕЖ", "ВГ", "РА", "КН"]
+
+
+def name_dative(rng):
+    return rng.choice(_DATIVE)
+
+
+def name_genitive(rng):
+    return rng.choice(_GENITIVE)
+
+
+def name_patronymic(rng):
+    return rng.choice(_PATRONYMIC)
+
+
+def name_lower(rng):
+    return full_name(rng).lower()
+
+
+def address_plain(rng):
+    """«на Садовой 15-8» — без «ул.», «д.» и «кв.»."""
+    return f"{rng.choice(_STREET_LOCATIVE)} {rng.randint(1, 120)}-{rng.randint(1, 300)}"
+
+
+def military_series(rng):
+    return rng.choice(_MILITARY_SERIES)
+
+
+def military_number(rng):
+    return _digits(rng, 7)
+
+
+def office_address(rng):
+    return f"{rng.choice(_STREETS)}, {rng.randint(1, 120)}"
+
+
+def server_ip(rng):
+    return f"10.{rng.randint(0, 255)}.{rng.randint(0, 255)}.{rng.randint(1, 254)}"
+
+
+def city(rng):
+    return rng.choice(_CITIES)
+
+
+HIDDEN: tuple[Scenario, ...] = (
+    Scenario(
+        "name_dative",
+        "ФИО в дательном падеже",
+        "Пользователь просит передать документы или посылку другому человеку и называет его "
+        "только в дательном падеже: «передайте {{NAME}}» (заглушка — уже в нужном падеже).",
+        (Slot("NAME", "NAME", "pii", name_dative),),
+    ),
+    Scenario(
+        "name_genitive",
+        "ФИО в родительном падеже",
+        "Пользователь оформляет доверенность или пропуск и пишет, что действует от имени "
+        "{{NAME}} (заглушка — уже в родительном падеже).",
+        (Slot("NAME", "NAME", "pii", name_genitive),),
+    ),
+    Scenario(
+        "name_patronymic",
+        "Имя и отчество без фамилии",
+        "Пользователь жалуется на курьера или врача и называет его только по имени и отчеству: "
+        "{{NAME}}.",
+        (Slot("NAME", "NAME", "pii", name_patronymic),),
+    ),
+    Scenario(
+        "name_lowercase",
+        "Имя строчными буквами",
+        "Пользователь пишет небрежно, без заглавных букв, и представляется: {{NAME}}.",
+        (Slot("NAME", "NAME", "pii", name_lower),),
+    ),
+    Scenario(
+        "address_plain",
+        "Адрес без «ул.» и «д.»",
+        "Пользователь просит курьера приехать и пишет адрес разговорно: «я на {{ADDRESS}}» — "
+        "улица, дом и квартира через дефис. Слов «улица», «дом», «квартира» рядом нет.",
+        (Slot("ADDRESS", "ADDRESS", "pii", address_plain),),
+    ),
+    Scenario(
+        "split_document",
+        "Серия и номер документа в разных репликах",
+        "Бот просит данные военного билета. Пользователь в одной реплике пишет серию "
+        "{{SERIES}}, бот уточняет номер, пользователь отдельной репликой присылает {{NUMBER}}. "
+        "Во второй реплике слов «военный билет» и «номер» нет — только число.",
+        (
+            Slot("SERIES", "MILITARY_ID", "pii", military_series),
+            Slot("NUMBER", "MILITARY_ID", "pii", military_number),
+        ),
+    ),
+    Scenario(
+        "no_pii_office",
+        "Без ПДн: адрес офиса, IP сервера, город",
+        "Сотрудник компании спрашивает поддержку хостинга, почему сервер {{IP}} недоступен из "
+        "офиса на {{OFFICE}} в городе {{CITY}}. О себе и других людях ничего не сообщает.",
+        (
+            Slot("IP", "IP_ADDRESS", "none", server_ip),
+            Slot("OFFICE", "ADDRESS", "none", office_address),
+            Slot("CITY", "ADDRESS", "none", city),
+        ),
+    ),
+)
+
+SETS = {"v1": SCENARIOS, "ambiguous": AMBIGUOUS, "hidden": HIDDEN}
 
 DOMAINS = ["банк", "доставка", "интернет-провайдер", "маркетплейс", "медицинская клиника"]
 

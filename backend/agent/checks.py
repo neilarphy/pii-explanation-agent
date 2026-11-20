@@ -223,6 +223,80 @@ def scan(text: str) -> list[tuple[int, int, CodeCheck]]:
     return sorted(hits)
 
 
+# Поиск шире (итерация 8): значения, которые не узнать по контрольной сумме. Номер документа
+# узнаётся по слову рядом — «СНИЛС», «серия», «права»; число — по цифрам-словам любой длины;
+# адрес — по улице и номеру дома без «д.». Ложных находок больше, поэтому это отдельный уровень.
+_STREET_WIDE = rf"(?<!\w)(?:{_STREET}|пр\.)"
+_ADDRESS_WIDE = re.compile(
+    rf"(?i:{_STREET_WIDE})\s*[А-ЯЁ0-9][\w.-]*(?:\s[А-ЯЁ0-9][\w.-]*){{0,3}},?\s*"
+    r"(?:(?i:д\.?|дом)\s*)?\d+(?:/\d+)?(?:[а-яА-Я](?![а-яА-Я\d]))?(?!\s*(?i:мин|час|руб|р\.|%))"
+    r"(?:,?\s*(?i:корп\.?|корпус|к\.?|стр\.?|строение)\s*\d+)?"
+    r"(?:,?\s*(?i:кв\.?|квартира)\s*\d+)?"
+)
+_NUMBER_WORDS = re.compile(rf"(?i)(?<!\w){_DIGIT_WORD}(?:[\s,\-‑–]+{_DIGIT_WORD}){{5,}}(?!\w)")
+_DOC_WORDS = (
+    (r"снилс\w*", "NATIONAL_ID", "СНИЛС"),
+    (r"инн", "NATIONAL_ID", "ИНН"),
+    (r"паспорт\w*", "PASSPORT", "паспорт"),
+    (r"водительск\w*|права|в/у", "DRIVER_LICENSE", "водительское удостоверение"),
+    (r"свидетельств\w*", "BIRTH_CERTIFICATE", "свидетельство"),
+    (r"военн\w*\s+билет\w*|в/б", "MILITARY_ID", "военный билет"),
+    (r"полис\w*|омс", "OMS", "полис ОМС"),
+    (r"сери[яиюей]", "DOCUMENT", "серия документа"),
+)
+_DOC_VALUE = (
+    r"(?<![А-ЯЁA-Zа-яё])"
+    r"(?:[IVXІ]{1,4}\s*[-–]\s*[А-ЯЁA-Z]{2}(?:\s*[-–№]?\s*\d{6})?"  # III-АГ 123456
+    r"|[А-ЯЁA-Z]{2}\s*[-:№]?\s*\d[\d\s:\-]{4,}\d"  # АВ 1234567
+    r"|\d[\d\s\-.:/\\]{1,}\d"  # 7518, 45-12-123456, 123.456.789 01
+    rf"|(?i:{_DIGIT_WORD}(?:[\s,\-‑–]+{_DIGIT_WORD}){{3,}}))"  # «восемь три три девять …»
+)
+_DOC = [
+    (
+        re.compile(rf"(?i)(?<!\w)(?:{kw})(?!\w)[^\d\n]{{0,25}}?(?-i:({_DOC_VALUE}))(?![\w])"),
+        CodeCheck(
+            "DOC_CONTEXT",
+            typ,
+            Category.PII,
+            f"номер рядом со словом «{name}» (контрольной суммы нет)",
+        ),
+    )
+    for kw, typ, name in _DOC_WORDS
+]
+
+
+def _number_words_check(digits: str) -> CodeCheck:
+    # Словами — только то, что подтверждает контрольная сумма; «10 цифр» ещё не паспорт
+    known = [c for c in identify(digits) if c.label in ("CARD", "INN_PERSON", "SNILS", "OGRNIP")]
+    if known:
+        c = known[0]
+        return CodeCheck(
+            f"{c.label}_WORDS", c.type, c.category, f"цифрами-словами; {c.description}"
+        )
+    return CodeCheck(
+        "NUMBER_WORDS", "NUMBER", Category.PII, f"число из {len(digits)} цифр, записанное словами"
+    )
+
+
+def scan_wide(text: str) -> list[tuple[int, int, CodeCheck]]:
+    """Находки поиска шире, которых нет в `scan` (не пересекаются с ними)."""
+    base = scan(text)
+    hits: list[tuple[int, int, CodeCheck]] = []
+
+    def add(start: int, end: int, check: CodeCheck) -> None:
+        if not any(s < end and start < e for s, e, _ in base + hits):
+            hits.append((start, end, check))
+
+    for pattern, check in _DOC:
+        for m in pattern.finditer(text):
+            add(m.start(1), m.end(1), check)
+    for m in _NUMBER_WORDS.finditer(text):
+        add(m.start(), m.end(), _number_words_check(words_to_digits(m.group())))
+    for m in _ADDRESS_WIDE.finditer(text):
+        add(m.start(), m.end(), _CHECKS["ADDRESS"])
+    return sorted(hits)
+
+
 _PART = re.compile(r"(?<![\w@.+\-])\d{2,}(?![\w@\-]|[.,]\d)")
 
 

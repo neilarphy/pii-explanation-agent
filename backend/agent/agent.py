@@ -10,6 +10,7 @@ from backend.schemas import AgentAnswer, Category, DetectionLog, Session, Verdic
 
 # Строки evidence, которые дописывает код, а не модель: их проверяет код, судья их не видит.
 CODE_EVIDENCE = (
+    "найдено при чтении диалога",
     "candidate=",
     "найдено кодом",
     "отброшены недословные цитаты",
@@ -74,6 +75,8 @@ def finalize(
     evidence = [f"candidate={c.id}" for c in case.candidates] + list(data.get("evidence") or [])
     if case.kind == "scan":
         evidence.insert(0, "найдено кодом, детектор не отметил")
+    if case.kind == "llm":
+        evidence.insert(0, "найдено при чтении диалога, детектор и код не отметили")
     note = data.get("note") or ""
 
     if dropped:

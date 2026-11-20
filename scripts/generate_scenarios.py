@@ -12,7 +12,7 @@ import random
 import sys
 from pathlib import Path
 
-from backend.agent.llm import client_from_env
+from backend.agent.llm import chat_from_env
 from evaluation.pii_bench import gold_to_json
 from evaluation.scenarios import DOMAINS, SETS, draw_values, fill, generator_messages
 
@@ -36,9 +36,28 @@ def main() -> int:
     parser.add_argument("--retries", type=int, default=3)
     parser.add_argument("--set", choices=sorted(SETS), default="v1", help="набор сценариев")
     parser.add_argument("--out", type=Path, default=Path("data/scenarios/scenarios-v1.jsonl"))
+    parser.add_argument(
+        "--cost-log", type=Path, help="jsonl с телеметрией каждого вызова (для scripts.costs)"
+    )
     args = parser.parse_args()
 
-    complete = client_from_env(args.model)
+    chat = chat_from_env(args.model)
+    calls = []
+
+    def complete(messages: list[dict]) -> str:
+        reply = chat(messages, None)
+        calls.append(
+            {
+                "telemetry": {
+                    "llm_calls": 1,
+                    "prompt_tokens": reply.prompt_tokens,
+                    "completion_tokens": reply.completion_tokens,
+                    "cost": reply.cost,
+                }
+            }
+        )
+        return reply.text
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     written, failed = 0, []
     with args.out.open("w", encoding="utf-8", newline="\n") as out:
@@ -69,6 +88,11 @@ def main() -> int:
                     f"{item_id}: {len(item.session.messages)} реплик, {len(item.gold)} эталонных спанов"
                 )
     print(f"Готово: {written} диалогов в {args.out}; не удалось: {failed or 'нет'}")
+    usd = sum(c["telemetry"]["cost"] for c in calls)
+    print(f"Вызовов LLM: {len(calls)}, ${usd:.4f} (≈ {usd * 700_000:,.0f} капсов)")
+    if args.cost_log:
+        args.cost_log.parent.mkdir(parents=True, exist_ok=True)
+        args.cost_log.write_text("".join(json.dumps(c) + "\n" for c in calls), "utf-8")
     return 0
 
 

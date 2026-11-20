@@ -142,7 +142,7 @@ class Misses:
 
 
 def misses(rows: list[dict]) -> Misses:
-    rest = [r for r in rows if r.get("kind") in ("rejected", "scan")]
+    rest = [r for r in rows if r.get("kind") in ("rejected", "scan", "llm")]
     return Misses(
         missed=sum(r["expected"] == "missed_pii" for r in rest),
         found=sum(r["expected"] == "missed_pii" and r["got"] == "missed_pii" for r in rest),

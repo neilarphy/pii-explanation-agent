@@ -6,7 +6,15 @@ import pytest
 
 from backend.agent.agent import explain_case
 from backend.agent.cases import Case, build_cases
-from backend.agent.checks import identify, inn_ok, names_a_type, ogrn_ok, scan, snils_ok
+from backend.agent.checks import (
+    identify,
+    inn_ok,
+    names_a_type,
+    ogrn_ok,
+    scan,
+    scan_wide,
+    snils_ok,
+)
 from backend.agent.prompt import enclosing_value
 from backend.schemas import (
     Candidate,
@@ -288,3 +296,57 @@ def test_no_join_where_parts_are_not_one_value(texts, turn, fragment):
 )
 def test_names_a_type(pii_type, text, is_name):
     assert names_a_type(pii_type, text) is is_name
+
+
+@pytest.mark.parametrize(
+    ("text", "value", "pii_type"),
+    [
+        ("Мой СНИЛС 111.222.333.44, проверьте", "111.222.333.44", "NATIONAL_ID"),
+        ("паспорт серия 7518", "7518", "PASSPORT"),
+        ("права: восемь три три девять восемь семь восемь пять один девять",
+         "восемь три три девять восемь семь восемь пять один девять", "DRIVER_LICENSE"),
+        ("свидетельство о рождении III - АГ 123456", "III - АГ 123456", "BIRTH_CERTIFICATE"),
+        ("военный билет АВ 1234567", "АВ 1234567", "MILITARY_ID"),
+        ("полис ОМС 7702 - 1234 - 5678 - 9012", "7702 - 1234 - 5678 - 9012", "OMS"),
+        ("г. Новосибирск, ул. Фрунзе 44 кв 78", "ул. Фрунзе 44 кв 78", "ADDRESS"),
+        ("Санкт-Петербург, пр. Просвещения, д. 12", "пр. Просвещения, д. 12", "ADDRESS"),
+    ],
+)  # fmt: skip
+def test_scan_wide_finds_values_without_checksum(text, value, pii_type):
+    hits = [(text[s:e], c.type) for s, e, c in scan_wide(text)]
+    assert (value, pii_type) in hits
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "номер заказа 123456, права потребителя защищены",
+        "Ехать по ул. Ленина 5 минут",
+        "Привет, проверьте пожалуйста",
+        "Карта 4276 1234 5678 9014",  # уже находит scan — не дублируем
+    ],
+)
+def test_scan_wide_skips_non_values_and_what_scan_found(text):
+    assert scan_wide(text) == []
+
+
+def test_number_words_typed_only_by_checksum():
+    text = "ИНН девять семь три шесть девять один восемь три один два один четыре"
+    ((_, _, check),) = scan_wide(text)
+    assert check.type == "NATIONAL_ID"
+    (_, _, plain) = scan_wide("мой номер пять шесть два девять три восемь семь ноль ноль пять")[0]
+    assert plain.type == "NUMBER"  # десять цифр словами — ещё не паспорт
+
+
+def test_build_cases_searches_wide_by_default():
+    session = Session(
+        id="s", messages=[Message(turn=0, direction="in", text="СНИЛС 111.222.333.44")]
+    )
+    log = DetectionLog(
+        session_id="s", profile="p", policy_version="1",
+        model=ModelConfig(id="m", emit_threshold=0.2, accept_threshold=0.5, labels=[]),
+        rules=[], entities=[], candidates=[],
+    )  # fmt: skip
+    assert build_cases(log, session, wide=False) == []  # как до итерации 8
+    (case,) = build_cases(log, session)
+    assert (case.kind, case.text, case.id) == ("scan", "111.222.333.44", "s-t0-w1")
