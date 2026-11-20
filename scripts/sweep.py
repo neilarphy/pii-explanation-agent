@@ -17,11 +17,13 @@ from pathlib import Path
 from scripts.evaluate import AGENTS, load_records, make_agent, run_agent, sample_cases
 
 
-def run_pair(picked, model: str, agent: str, out: Path, workers: int) -> list[dict]:
+def run_pair(
+    picked, model: str, agent: str, out: Path, workers: int, big: str | None = None, votes: int = 2
+) -> list[dict]:
     path = out / f"{model}__{agent}.jsonl"
     if path.exists():
         return [json.loads(line) for line in path.read_text("utf-8").splitlines()]
-    rows = run_agent(picked, workers, make_agent(agent, model))
+    rows = run_agent(picked, workers, make_agent(agent, model, big, votes))
     path.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), "utf-8")
     return rows
 
@@ -50,6 +52,9 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=13)
     parser.add_argument("--models", required=True, help="через запятую")
     parser.add_argument("--modes", default="bare,harness", help=f"через запятую из {AGENTS}")
+    parser.add_argument("--big-model", help="каскад: большая модель для расхождений")
+    parser.add_argument("--votes", type=int, default=2, help="каскад: ответов маленькой модели")
+    parser.add_argument("--case-ids", type=Path, help="файл с case_id: прогнать только эти находки")
     parser.add_argument("--workers", type=int, default=4, help="параллельных вызовов на пару")
     parser.add_argument("--pairs", type=int, default=4, help="пар одновременно")
     parser.add_argument("--out", type=Path, default=Path("runs/sweep"))
@@ -60,11 +65,19 @@ def main() -> int:
     if unknown:
         parser.error(f"нет режимов {sorted(unknown)}; есть {AGENTS}")
     picked, _ = sample_cases(list(load_records(args.logs)), args.per_class, args.seed)
+    if args.case_ids:
+        wanted = set(args.case_ids.read_text("utf-8").split())
+        picked = [p for p in picked if p[5].id in wanted]
     args.out.mkdir(parents=True, exist_ok=True)
 
     pairs = [(m, a) for m in models for a in modes]
     with ThreadPoolExecutor(max_workers=args.pairs) as pool:
-        results = list(pool.map(lambda p: run_pair(picked, *p, args.out, args.workers), pairs))
+        results = list(
+            pool.map(
+                lambda p: run_pair(picked, *p, args.out, args.workers, args.big_model, args.votes),
+                pairs,
+            )
+        )
 
     report = [
         f"# Модели × режимы: {args.logs.stem}, {len(picked)} находок "

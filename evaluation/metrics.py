@@ -47,7 +47,8 @@ def score_detector(records: list[tuple[DetectionLog, tuple[GoldSpan, ...]]]) -> 
     """
     report = DetectorReport()
     for log, gold in records:
-        positives = [g for g in gold if g.cat != "none"]  # приманки сценариев — не ПДн
+        # приманки сценариев (none) и спорные случаи (ambiguous) — не ПДн для детектора
+        positives = [g for g in gold if g.cat not in ("none", "ambiguous")]
         for g in positives:
             if g.detector_type is None:
                 report.uncovered_gold[g.type] += 1
@@ -79,6 +80,8 @@ def expected(case: Case, gold: tuple[GoldSpan, ...]) -> tuple[str, str]:
     Маскировать нужно pii и sensitive; реквизиты организаций (КПП, ОГРН, ИНН из 10 цифр) — нет.
     """
     hits = [g.category for g in gold if _overlap(case.turn, case.start, case.end, g)]
+    if "ambiguous" in hits:  # спорный случай: верный ответ — «не уверен», решает человек
+        return "uncertain", "ambiguous"
     category = max(hits, key=_RANK.__getitem__, default="none")
     mask = category != "none"
     if case.kind == "entity":

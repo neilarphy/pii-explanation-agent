@@ -107,7 +107,12 @@ class CodeCheck:
 
 
 _CHECKS = {
-    "CARD": CodeCheck("CARD", "PAYMENT_CARD", Category.PII, "номер карты: Луна сходится"),
+    "CARD": CodeCheck(
+        "CARD",
+        "PAYMENT_CARD",
+        Category.PII,
+        "форма как у номера карты: 13–19 цифр, контрольная сумма Луна сходится",
+    ),
     "OGRNIP": CodeCheck(
         "OGRNIP", "NATIONAL_ID", Category.PII, "ОГРНИП: контрольная сумма сходится"
     ),

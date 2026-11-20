@@ -65,10 +65,12 @@ class GoldSpan:
 
     @property
     def category(self) -> str:
-        if self.cat is not None:
-            return self.cat
+        # ИНН из 10 цифр — организация при любой разметке: redmadrobot ставит ИНН категорию pii явно,
+        # и до итерации 7 правило по длине для него не срабатывало
         if self.type == "INN" and len("".join(ch for ch in self.text if ch.isdigit())) == 10:
             return "none"
+        if self.cat is not None:
+            return self.cat
         return CATEGORY.get(self.type, "pii")
 
 

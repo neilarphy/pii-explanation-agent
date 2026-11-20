@@ -6,7 +6,14 @@ import re
 import pytest
 
 from backend.agent.checks import identify
-from evaluation.scenarios import SCENARIOS, apply_fixes, draw_values, fill, generator_messages
+from evaluation.scenarios import (
+    AMBIGUOUS,
+    SCENARIOS,
+    apply_fixes,
+    draw_values,
+    fill,
+    generator_messages,
+)
 
 BY_ID = {s.id: s for s in SCENARIOS}
 
@@ -79,3 +86,33 @@ def test_gold_fixes_are_added_once_with_offsets_from_text():
     ]
     with pytest.raises(ValueError):
         apply_fixes(record, [{**fix, "text": "Борис"}])
+
+
+@pytest.mark.parametrize("scenario", AMBIGUOUS, ids=lambda s: s.id)
+def test_ambiguous_cases_expect_uncertain(scenario):
+    """Спорный случай: эталон ambiguous, верный ответ агента — «не уверен»."""
+    from backend.agent.cases import Case
+    from evaluation.metrics import expected
+
+    values = draw_values(scenario, random.Random(3))
+    item = fill(scenario, "x", _fake_dialog(list(values)), values)
+    (span,) = item.gold
+    assert span.category == "ambiguous"
+    case = Case(
+        id="x-t0-e1",
+        kind="entity",
+        turn=span.turn,
+        start=span.start,
+        end=span.end,
+        text=span.text,
+        type="PAYMENT_CARD",
+        entity_id="e1",
+        candidates=(),
+    )
+    assert expected(case, item.gold) == ("uncertain", "ambiguous")
+
+
+def test_bare_number_looks_like_a_card():
+    from evaluation.scenarios import bare_luhn_number
+
+    assert identify(bare_luhn_number(random.Random(5)))[0].label == "CARD"

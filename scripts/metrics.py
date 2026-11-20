@@ -21,6 +21,7 @@ from evaluation.agent_metrics import (
     macro_f1,
     misses,
     per_class,
+    policy_mismatch,
     stability,
     uncertain_by_expected,
     usage,
@@ -53,18 +54,31 @@ def report(title: str, runs: dict[str, list[dict]], repeats: dict[str, list[list
         "## 1. Вердикт по каждому классу",
         "",
         "Точность / полнота по каждому вердикту эталона; uncertain и сбои не попадают ни в один класс.",
+        "«Расхождение политики» — эталон требует маскировать контакт организации или тестовую карту,",
+        "агент по политике проекта (docs/pii-policy.md) — нет; это не ошибка агента.",
         "",
     ]
     rows = []
     for name, data in runs.items():
         scores = per_class(data)
         correct = sum(r["expected"] == r["got"] for r in data)
+        mismatch = sum(policy_mismatch(r) for r in data)
         rows.append(
-            [name, pct(correct, len(data))]
+            [name, pct(correct, len(data)), str(mismatch), pct(correct + mismatch, len(data))]
             + [f"{fmt(scores[v].precision)} / {fmt(scores[v].recall)}" for v in VERDICTS]
             + [fmt(macro_f1(scores))]
         )
-    lines += table(["Прогон", "Вердикт верен", *VERDICTS, "Макро-F1"], rows)
+    lines += table(
+        [
+            "Прогон",
+            "Вердикт верен",
+            "Расхождение политики",
+            "Верно по политике проекта",
+            *VERDICTS,
+            "Макро-F1",
+        ],
+        rows,
+    )
 
     lines += [
         "",
@@ -163,6 +177,7 @@ def report(title: str, runs: dict[str, list[dict]], repeats: dict[str, list[list
                 f"{u.prompt_tokens:.0f} / {u.completion_tokens:.0f}",
                 f"{u.seconds_p50:.1f} / {u.seconds_p90:.1f}",
                 f"{u.cost_usd:.4f}" if u.cost_usd else "не сообщалась",
+                f"{u.escalated_share:.0%}",
             ]
         )
     lines += table(
@@ -173,6 +188,7 @@ def report(title: str, runs: dict[str, list[dict]], repeats: dict[str, list[list
             "Токенов вход / выход",
             "Секунд p50 / p90",
             "Стоимость всего, $",
+            "Каскад: к большой / человеку",
         ],
         rows,
     )

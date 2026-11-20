@@ -9,12 +9,49 @@
 Сбой вызова — got == "ошибка".
 """
 
+import re
 import statistics
 from collections import Counter
 from dataclasses import dataclass
 
-VERDICTS = ("true_pii", "false_positive", "missed_pii", "no_issue")
+VERDICTS = ("true_pii", "false_positive", "missed_pii", "no_issue", "uncertain")
 DROPPED = "отброшены недословные цитаты"
+
+# Контакты организаций и публичные тестовые карты: открытые наборы размечают их как ПДн по форме,
+# политика проекта — нет (docs/pii-policy.md, раздел 4).
+_ORG_MAILBOX = re.compile(
+    r"(?i)^(info|help|support|noreply|no-reply|hello|contact|contacts|sales|office|admin|service"
+    r"|feedback|press|hr|mail|team|billing|zakaz|order|orders)@"
+)
+TEST_CARDS = {
+    "4111111111111111",
+    "5555555555554444",
+    "4242424242424242",
+    "4000056655665556",
+    "5105105105105100",
+    "2223003122003222",
+    "378282246310005",
+    "4012888888881881",
+    "5200828282828210",
+    "6011111111111117",
+}
+
+
+def not_personal_by_policy(text: str) -> bool:
+    """Общий ящик или 8-800 организации, публичная тестовая карта — не ПДн по политике проекта."""
+    text = re.sub(r"\s+", "", text)  # «info @ fortress . com . ru» — так размечено в redmadrobot
+    digits = re.sub(r"\D", "", text)
+    toll_free = len(digits) == 11 and digits[0] in "78" and digits[1:4] == "800"
+    return bool(_ORG_MAILBOX.match(text)) or toll_free or digits in TEST_CARDS
+
+
+def policy_mismatch(row: dict) -> bool:
+    """Эталон набора требует маскировать, агент по политике проекта — нет. Не ошибка агента."""
+    return (
+        row["expected"] in ("true_pii", "missed_pii")
+        and row["got"] in ("false_positive", "no_issue")
+        and not_personal_by_policy(row.get("text", ""))
+    )
 
 
 @dataclass(frozen=True)
@@ -50,7 +87,8 @@ def per_class(rows: list[dict]) -> dict[str, ClassScore]:
 
 
 def macro_f1(scores: dict[str, ClassScore]) -> float:
-    values = [s.f1 for s in scores.values() if s.f1 is not None]
+    """Среднее F1 по классам, которые есть в эталоне (uncertain — только в спорном наборе)."""
+    values = [s.f1 for s in scores.values() if s.support]
     return statistics.fmean(values) if values else 0.0
 
 
@@ -158,6 +196,7 @@ class Usage:
     seconds_p50: float
     seconds_p90: float
     cost_usd: float  # сумма по usage.cost; 0 — провайдер не сообщал (прогоны до итерации 6)
+    escalated_share: float  # каскад: доля находок, ушедших большой модели или человеку
 
 
 def usage(rows: list[dict]) -> Usage | None:
@@ -177,6 +216,7 @@ def usage(rows: list[dict]) -> Usage | None:
         seconds_p50=statistics.median(seconds),
         seconds_p90=seconds[int(0.9 * (len(seconds) - 1))],
         cost_usd=sum(t.get("cost", 0) for t in tel),
+        escalated_share=sum(t.get("escalated", 0) for t in tel) / len(tel),
     )
 
 
