@@ -8,13 +8,14 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import pytest
-from app.errors import AdapterContractError, ConfigurationError, ServiceError
-from app.gliner_detector import GlinerDetector
+
+from backend.detectors.app.errors import AdapterContractError, ConfigurationError, ServiceError
+from backend.detectors.app.gliner_detector import GlinerDetector
 
 
 @pytest.fixture
 def library(monkeypatch):
-    from app import gliner_detector
+    from backend.detectors.app import gliner_detector
 
     state = SimpleNamespace(schema_calls=[], calls=[], mode=False, synced=0, result=None, fail=None)
 

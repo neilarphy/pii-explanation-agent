@@ -16,12 +16,17 @@ Compose v2 с `--wait`, NVIDIA Container Toolkit, совместимый дра�
 достаточной памятью для float32. Сборка и подготовка весов требуют сети. Runtime
 читает `/models` read-only и использует только локальные файлы.
 
+Python-модули сервиса используют полные имена `backend.detectors.*`. Локально они
+запускаются из корня репозитория; внутри образа корень пакетов — `/service`.
+Compose собирает образ из корня репозитория с фильтром `Dockerfile.dockerignore`,
+который оставляет только backend сервиса и исключает веса, окружения и `.env`.
+
 ```bash
 # Один раз из корня клонированного репозитория
 cd backend/detectors
 mkdir -p models
 docker compose build pii
-docker compose run --rm --no-deps -v "$PWD/models:/prepare" pii python -m scripts.prepare_models --output /prepare
+docker compose run --rm --no-deps -v "$PWD/models:/prepare" pii python -m backend.detectors.scripts.prepare_models --output /prepare
 docker compose up -d --wait --wait-timeout 600 pii
 curl -fsS http://127.0.0.1:8000/health/ready
 curl -fsS http://127.0.0.1:8000/v1/detect -H 'Content-Type: application/json' -d '{"text":"🙂 Анна: a@example.org"}'
@@ -170,6 +175,15 @@ SHA-256 каждого файла; startup проверяет файлы, отс
 
 ## Тестирование и приёмка
 
+Из корня репозитория `uv sync --locked` и `uv run --locked pytest` запускают тесты
+без зависимостей детектора. Модули HTTP/политики и проверки HTTP-startup пропускаются,
+если нужные FastAPI, HTTPX или Pydantic не установлены; regex и адаптер проверяются.
+CI выполняет этот прогон, затем устанавливает CPU lock и повторяет полный набор
+тестов. GPU-тесты запускаются отдельно с `-m gpu`.
+
+Ниже команды из `backend/detectors/`. Локальный pytest использует корень репозитория
+из `pytest.ini`, без изменения `sys.path` в тестовом коде.
+
 ```bash
 # CPU-тесты в собственном окружении; CUDA и веса не нужны
 uv venv .venv --python 3.12
@@ -177,7 +191,7 @@ uv pip install --python .venv/bin/python -r requirements-cpu.lock
 .venv/bin/python -m pytest -m 'not gpu'
 
 # Regex импортируется даже без site-packages
-python -S -c 'from app.config import load_profile; from app.regex_detector import RegexDetector; print(RegexDetector(load_profile()).detect("🙂 a@example.org a@example.org"))'
+(cd ../.. && python -S -c 'from backend.detectors.app.config import load_profile; from backend.detectors.app.regex_detector import RegexDetector; print(RegexDetector(load_profile()).detect("🙂 a@example.org a@example.org"))')
 
 # В образе доступны те же CPU-тесты
 docker compose run --rm --no-deps pii python -m pytest -m 'not gpu'
@@ -196,7 +210,7 @@ docker rm -f pii-offline
 
 # Зафиксировать реальный HTTP-ответ для отчёта (только синтетические данные)
 docker compose up -d --wait --wait-timeout 600 pii
-python -m scripts.acceptance --output acceptance-output/response.json
+(cd ../.. && python -m backend.detectors.scripts.acceptance --output backend/detectors/acceptance-output/response.json)
 cat acceptance-output/response.json
 # Проверить отсутствие уникального синтетического маркера/значений в логах
 ! docker compose logs --no-color pii | rg 'acceptance-847291|example.org|Анна Иванова|John Smith'

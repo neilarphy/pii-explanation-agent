@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 
 import pytest
-from app.artifacts import (
+
+from backend.detectors.app.artifacts import (
     MODEL_ID,
     MODEL_REVISION,
     TOKENIZER_ID,
@@ -13,14 +14,15 @@ from app.artifacts import (
     sha256,
     verify_manifest,
 )
-from app.errors import ConfigurationError
+from backend.detectors.app.errors import ConfigurationError
 
 
 @pytest.mark.parametrize("labels", ["", "person,person", "person,", "first name"])
 def test_invalid_labels_exit_before_weights(labels):
-    root = Path(__file__).resolve().parents[1]
+    pytest.importorskip("fastapi", exc_type=ModuleNotFoundError)
+    root = Path(__file__).resolve().parents[3]
     result = subprocess.run(
-        [sys.executable, "-c", "from app.main import initialize; initialize()"],
+        [sys.executable, "-c", "from backend.detectors.app.main import initialize; initialize()"],
         cwd=root,
         env={**os.environ, "NER_LABELS": labels},
         capture_output=True,
@@ -31,7 +33,7 @@ def test_invalid_labels_exit_before_weights(labels):
 
 
 def test_manifest_integrity_and_package_match(tmp_path, monkeypatch):
-    from app import artifacts
+    from backend.detectors.app import artifacts
 
     monkeypatch.setattr(artifacts, "package_versions", lambda: {"gliner2": "2.1.0"})
     (tmp_path / "checkpoint").mkdir()
@@ -61,7 +63,7 @@ def test_manifest_integrity_and_package_match(tmp_path, monkeypatch):
 
 
 def test_threshold_configuration(profile, tmp_path, monkeypatch):
-    from app.config import ROOT, load_profile
+    from backend.detectors.app.config import ROOT, load_profile
 
     monkeypatch.delenv("NER_LABELS", raising=False)
     source = (ROOT / "config/profile.toml").read_text()

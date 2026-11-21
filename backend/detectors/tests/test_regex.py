@@ -1,12 +1,13 @@
 import dataclasses
 import json
-import os
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
-from app.errors import ConfigurationError, TraceLimitError
-from app.regex_detector import RegexDetector
+
+from backend.detectors.app.errors import ConfigurationError, TraceLimitError
+from backend.detectors.app.regex_detector import RegexDetector
 
 
 @pytest.mark.parametrize(
@@ -92,15 +93,15 @@ def test_limit_inclusive(profile):
 def test_standalone_standard_library():
     script = """
 import json, sys
-from app.config import load_profile
-from app.regex_detector import RegexDetector
+from backend.detectors.app.config import load_profile
+from backend.detectors.app.regex_detector import RegexDetector
 r=RegexDetector(load_profile()).detect('🙂 a@example.org a@example.org')
 assert 'torch' not in sys.modules and 'pydantic' not in sys.modules
 print(json.dumps([(o.start,o.end) for o in r.observations]))
 """
     result = subprocess.run(
         [sys.executable, "-S", "-c", script],
-        cwd=os.path.dirname(os.path.dirname(__file__)),
+        cwd=Path(__file__).resolve().parents[3],
         capture_output=True,
         text=True,
         check=True,

@@ -3,11 +3,12 @@ import re
 from types import SimpleNamespace
 
 import pytest
-from app.config import load_profile, parse_labels
-from app.errors import AdapterContractError, ConfigurationError, TraceLimitError
-from app.gliner_detector import ProcessorBudget, decode_window
-from app.observations import Window
-from app.windowing import plan_windows
+
+from backend.detectors.app.config import load_profile, parse_labels
+from backend.detectors.app.errors import AdapterContractError, ConfigurationError, TraceLimitError
+from backend.detectors.app.gliner_detector import ProcessorBudget, decode_window
+from backend.detectors.app.observations import Window
+from backend.detectors.app.windowing import plan_windows
 
 
 @pytest.mark.parametrize(

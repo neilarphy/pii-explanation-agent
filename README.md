@@ -31,6 +31,17 @@ uv run pre-commit run --all-files  # прогнать хуки вручную
 uv run pytest                    # тесты
 ```
 
+Без дополнительных зависимостей детектора pytest пропускает тесты, которым нужны
+FastAPI, HTTPX или Pydantic. Для полного CPU-прогона:
+
+```bash
+uv pip install --python .venv/bin/python -r backend/detectors/requirements-cpu.lock
+uv run --no-sync pytest
+```
+
+`--no-sync` сохраняет установленные отдельно зависимости сервиса. Подробности запуска
+сервиса и GPU-тестов — в [backend/detectors/README.md](backend/detectors/README.md).
+
 Что проверяется перед коммитом и в CI на каждом PR:
 
 - `ruff check` и `ruff format` — стиль и типовые ошибки в коде и ноутбуках;

@@ -1,18 +1,25 @@
+# Optional dependencies must be checked before importing the HTTP application.
+
 import asyncio
 import json
 import threading
 from uuid import UUID
 
 import pytest
-from app.config import MAX_BODY, load_profile
-from app.errors import AdapterContractError, ServiceError, TraceLimitError
-from app.main import create_app
-from app.observations import ModelObservation as M
-from app.observations import Window
-from app.pipeline import Pipeline
-from app.regex_detector import RegexDetector
-from conftest import EmptyModel, model_run
+
+pytest.importorskip("fastapi", exc_type=ModuleNotFoundError)
+pytest.importorskip("httpx", exc_type=ModuleNotFoundError)
+
 from fastapi.testclient import TestClient
+
+from backend.detectors.app.config import MAX_BODY, load_profile
+from backend.detectors.app.errors import AdapterContractError, ServiceError, TraceLimitError
+from backend.detectors.app.main import create_app
+from backend.detectors.app.observations import ModelObservation as M
+from backend.detectors.app.observations import Window
+from backend.detectors.app.pipeline import Pipeline
+from backend.detectors.app.regex_detector import RegexDetector
+from backend.detectors.tests.helpers import EmptyModel, model_run
 
 
 @pytest.fixture
@@ -85,7 +92,7 @@ def test_blank_and_zero(client, text):
         )
     if not text.strip():
         assert result["trace"]["model"]["windows"] == []
-    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0, 0, 0, 0]
+    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 4
     assert all(v >= 0 for v in result["trace"]["timings_ms"].values())
 
 

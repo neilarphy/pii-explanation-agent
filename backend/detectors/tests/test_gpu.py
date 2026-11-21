@@ -13,8 +13,9 @@ def detector(request):
     if "gpu" not in request.config.getoption("-m"):
         pytest.skip("select explicitly with -m gpu on the GPU host")
     import torch
-    from app.config import load_profile
-    from app.gliner_detector import GlinerDetector
+
+    from backend.detectors.app.config import load_profile
+    from backend.detectors.app.gliner_detector import GlinerDetector
 
     assert torch.cuda.is_available(), "GPU acceptance requires CUDA; no CPU fallback"
     return GlinerDetector(load_profile(), Path(os.environ.get("MODEL_PATH", "/models")))

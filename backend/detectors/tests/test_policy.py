@@ -1,15 +1,26 @@
+# The response contract requires the detector's optional CPU dependencies.
+
 import json
 from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from app.errors import TraceLimitError
-from app.observations import ModelObservation as M
-from app.observations import RegexMetadata, RegexObservation, RegexRun, RuleCount, Window
-from app.pipeline import build_response, merge_observations
-from app.regex_detector import RegexDetector
-from app.schemas import Timings
-from conftest import model_run
+
+pytest.importorskip("pydantic", exc_type=ModuleNotFoundError)
+
+from backend.detectors.app.errors import TraceLimitError
+from backend.detectors.app.observations import ModelObservation as M
+from backend.detectors.app.observations import (
+    RegexMetadata,
+    RegexObservation,
+    RegexRun,
+    RuleCount,
+    Window,
+)
+from backend.detectors.app.pipeline import build_response, merge_observations
+from backend.detectors.app.regex_detector import RegexDetector
+from backend.detectors.app.schemas import Timings
+from backend.detectors.tests.helpers import model_run
 
 
 def test_contract_fixture(profile):

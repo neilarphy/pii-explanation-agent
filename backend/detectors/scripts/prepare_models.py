@@ -12,7 +12,7 @@ os.environ["HF_HUB_OFFLINE"] = "0"
 os.environ["TRANSFORMERS_OFFLINE"] = "0"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
 
-from app.artifacts import (
+from backend.detectors.app.artifacts import (
     MODEL_ID,
     MODEL_REVISION,
     TOKENIZER_ID,

@@ -1,13 +1,20 @@
+# Optional dependencies must be checked before importing the HTTP application.
+
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from time import perf_counter
 
-import httpx
 import pytest
-from app.admission import Admission, Runtime
-from app.errors import ServiceError
-from app.main import create_app
+
+pytest.importorskip("fastapi", exc_type=ModuleNotFoundError)
+pytest.importorskip("httpx", exc_type=ModuleNotFoundError)
+
+import httpx
+
+from backend.detectors.app.admission import Admission, Runtime
+from backend.detectors.app.errors import ServiceError
+from backend.detectors.app.main import create_app
 
 
 async def eventually(predicate, timeout=2):
@@ -115,10 +122,10 @@ def test_errors_release_actual_slot():
 
 
 def test_http_disconnect_removes_waiter_but_keeps_running_owner(profile):
-    from app.observations import ModelRun
-    from app.pipeline import Pipeline
-    from app.regex_detector import RegexDetector
-    from conftest import EmptyModel
+    from backend.detectors.app.observations import ModelRun
+    from backend.detectors.app.pipeline import Pipeline
+    from backend.detectors.app.regex_detector import RegexDetector
+    from backend.detectors.tests.helpers import EmptyModel
 
     async def scenario():
         entered, release = threading.Event(), threading.Event()
@@ -179,10 +186,10 @@ def test_http_disconnect_removes_waiter_but_keeps_running_owner(profile):
 
 
 def test_http_busy_retry_header(profile):
-    from app.observations import ModelRun
-    from app.pipeline import Pipeline
-    from app.regex_detector import RegexDetector
-    from conftest import EmptyModel
+    from backend.detectors.app.observations import ModelRun
+    from backend.detectors.app.pipeline import Pipeline
+    from backend.detectors.app.regex_detector import RegexDetector
+    from backend.detectors.tests.helpers import EmptyModel
 
     async def scenario():
         entered, release = threading.Event(), threading.Event()

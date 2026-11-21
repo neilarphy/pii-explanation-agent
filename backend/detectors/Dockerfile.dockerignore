@@ -1,0 +1,13 @@
+**
+!backend/
+!backend/__init__.py
+!backend/detectors/
+!backend/detectors/**
+backend/detectors/models/
+backend/detectors/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/*.pyc
+**/.env
+**/.env.*

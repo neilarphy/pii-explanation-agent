@@ -4,8 +4,8 @@ services:
     platform: linux/amd64
     runtime: nvidia
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: backend/detectors/Dockerfile
     environment:
       - NER_LABELS
       - HF_HUB_OFFLINE=1
