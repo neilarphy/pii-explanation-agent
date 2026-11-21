@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "request_id": "f3c006d9-2bc7-43cc-b1e7-e1e46c6d60da",
+  "has_pii": true,
+  "entities": [
+    {"id":"e1","type":"PERSON","start":2,"end":6,"text":"Анна","candidate_ids":["c1"]},
+    {"id":"e2","type":"EMAIL","start":8,"end":21,"text":"a@example.org","candidate_ids":["c2","c3"]}
+  ],
+  "trace": {
+    "profile": "pii-ru-en-v1",
+    "policy_version": "1.0.0",
+    "offset_unit": "unicode_code_point",
+    "text_length": 21,
+    "model": {
+      "id":"hivetrace/gliner-guard-omni",
+      "revision":"1111111111111111111111111111111111111111",
+      "device":"cuda:0","dtype":"float32","status":"ok",
+      "emit_threshold":0.20,"accept_threshold":0.50,
+      "labels":["person","first_name","last_name","address","email","phone","passport","national_id","date_of_birth","card_number","bank_account"],
+      "windows":[{"id":"w1","start":0,"end":21,"candidate_count":2}]
+    },
+    "regex": {
+      "engine":"python.re","device":"cpu","status":"ok",
+      "rules":[
+        {"id":"email_ascii_v1","matches":1},
+        {"id":"phone_plus_v1","matches":0},
+        {"id":"phone_ru_v1","matches":0},
+        {"id":"card_pan_v1","matches":0}
+      ]
+    },
+    "candidates": [
+      {"id":"c1","source":"model","raw_label":"first_name","type":"PERSON","window_id":"w1","start":2,"end":6,"score":0.91,"decision":"accepted","reason":"model_threshold_passed","entity_id":"e1"},
+      {"id":"c2","source":"model","raw_label":"email","type":"EMAIL","window_id":"w1","start":8,"end":21,"score":0.84,"decision":"accepted","reason":"model_threshold_passed","entity_id":"e2"},
+      {"id":"c3","source":"regex","rule_id":"email_ascii_v1","type":"EMAIL","start":8,"end":21,"score":null,"decision":"accepted","reason":"rule_passed","entity_id":"e2"}
+    ],
+    "timings_ms":{"queue":0.1,"model":30.5,"regex":2.2,"merge":0.3,"total":33.4}
+  }
+}
