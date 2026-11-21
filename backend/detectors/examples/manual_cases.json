@@ -1,0 +1,404 @@
+{
+  "suite": "manual-synthetic-v1",
+  "notes": "Synthetic texts with expectations fixed before live inference. Exact typed spans; nested PERSON name parts explicitly allowed. Invalid checksums/calendar values are deliberate negative controls, not a claim about whether mistyped data is sensitive. IP expected absent for the default profile.",
+  "cases": [
+    {
+      "id": "ru_name",
+      "text": "Меня зовут Анна Иванова.",
+      "expected": [
+        {
+          "type": "PERSON",
+          "text": "Анна Иванова"
+        }
+      ],
+      "allowed": [
+        {
+          "type": "PERSON",
+          "text": "Анна"
+        },
+        {
+          "type": "PERSON",
+          "text": "Иванова"
+        }
+      ]
+    },
+    {
+      "id": "en_name",
+      "text": "My name is John Smith.",
+      "expected": [
+        {
+          "type": "PERSON",
+          "text": "John Smith"
+        }
+      ],
+      "allowed": [
+        {
+          "type": "PERSON",
+          "text": "John"
+        },
+        {
+          "type": "PERSON",
+          "text": "Smith"
+        }
+      ]
+    },
+    {
+      "id": "email_unicode",
+      "text": "🙂 Напишите на anna.test@example.org.\r\nОтветьте завтра.",
+      "expected": [
+        {
+          "type": "EMAIL",
+          "text": "anna.test@example.org"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_plus_spaced",
+      "text": "Телефон для связи: +7 999 123-45-67.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "+7 999 123-45-67"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_8_spaced",
+      "text": "Телефон: 8 999 123 45 67.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "8 999 123 45 67"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_compact",
+      "text": "Мой контактный телефон — 89991234567.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "89991234567"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_national",
+      "text": "Телефон: 999 123 45 67.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "999 123 45 67"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_words_digits",
+      "text": "Телефон: восемь девять один два три четыре пять шесть семь восемь девять.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "восемь девять один два три четыре пять шесть семь восемь девять"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "phone_words_groups",
+      "text": "Позвоните: восемь девятьсот двенадцать триста сорок пять шестьдесят семь восемьдесят девять.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "восемь девятьсот двенадцать триста сорок пять шестьдесят семь восемьдесят девять"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "inn_10",
+      "text": "ИНН: 1234567894.",
+      "expected": [
+        {
+          "type": "INN",
+          "text": "1234567894"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "inn_12",
+      "text": "ИНН: 123456789047.",
+      "expected": [
+        {
+          "type": "INN",
+          "text": "123456789047"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "snils",
+      "text": "СНИЛС: 112-233-445 95.",
+      "expected": [
+        {
+          "type": "SNILS",
+          "text": "112-233-445 95"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "passport",
+      "text": "Паспорт: 7518 492137.",
+      "expected": [
+        {
+          "type": "PASSPORT",
+          "text": "7518 492137"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "passport_split",
+      "text": "Паспорт серия 75 18, номер 492137.",
+      "expected": [
+        {
+          "type": "PASSPORT",
+          "text": "75 18, номер 492137"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "driver_license",
+      "text": "Водительское удостоверение серии 77 14 номер 987654.",
+      "expected": [
+        {
+          "type": "DRIVER_LICENSE",
+          "text": "77 14 номер 987654"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "birth_certificate",
+      "text": "Свидетельство о рождении, серия III - АГ, номер 112233.",
+      "expected": [
+        {
+          "type": "BIRTH_CERTIFICATE",
+          "text": "III - АГ, номер 112233"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "military_id",
+      "text": "Военный билет, серия МЗ, номер 0045678.",
+      "expected": [
+        {
+          "type": "MILITARY_ID",
+          "text": "МЗ, номер 0045678"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "military_bare",
+      "text": "У меня АА 1234567.",
+      "expected": [
+        {
+          "type": "MILITARY_ID",
+          "text": "АА 1234567"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "oms_card_collision",
+      "text": "Запиши полис ОМС: 4111 1111 1111 1111.",
+      "expected": [
+        {
+          "type": "OMS_POLICY",
+          "text": "4111 1111 1111 1111"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "oms_dashes",
+      "text": "Полис ОМС: 7702 - 1234 - 5678 - 9012.",
+      "expected": [
+        {
+          "type": "OMS_POLICY",
+          "text": "7702 - 1234 - 5678 - 9012"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "payment_card",
+      "text": "Карта клиента: 5555 5555 5555 4444.",
+      "expected": [
+        {
+          "type": "PAYMENT_CARD",
+          "text": "5555 5555 5555 4444"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "birth_date",
+      "text": "Дата рождения: 29.02.2000.",
+      "expected": [
+        {
+          "type": "DATE_OF_BIRTH",
+          "text": "29.02.2000"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "address",
+      "text": "Адрес доставки: г. Казань, пр-т Мира, д. 43, кв. 154.",
+      "expected": [
+        {
+          "type": "ADDRESS",
+          "text": "г. Казань, пр-т Мира, д. 43, кв. 154"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "contact_card",
+      "text": "Мария Соколова. Почта: maria.test@example.org. Телефон: +7 (999) 123-45-67.",
+      "expected": [
+        {
+          "type": "PERSON",
+          "text": "Мария Соколова"
+        },
+        {
+          "type": "EMAIL",
+          "text": "maria.test@example.org"
+        },
+        {
+          "type": "PHONE",
+          "text": "+7 (999) 123-45-67"
+        }
+      ],
+      "allowed": [
+        {
+          "type": "PERSON",
+          "text": "Мария"
+        },
+        {
+          "type": "PERSON",
+          "text": "Соколова"
+        }
+      ]
+    },
+    {
+      "id": "multiple_documents",
+      "text": "Паспорт: 7518 492137; права: 77 14 987654; ИНН: 123456789047; СНИЛС: 112-233-445 95.",
+      "expected": [
+        {
+          "type": "PASSPORT",
+          "text": "7518 492137"
+        },
+        {
+          "type": "DRIVER_LICENSE",
+          "text": "77 14 987654"
+        },
+        {
+          "type": "INN",
+          "text": "123456789047"
+        },
+        {
+          "type": "SNILS",
+          "text": "112-233-445 95"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "ambiguous_snils_context",
+      "text": "СНИЛС: 81234567891.",
+      "expected": [
+        {
+          "type": "SNILS",
+          "text": "81234567891"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "ambiguous_phone_context",
+      "text": "Телефон: 81234567891.",
+      "expected": [
+        {
+          "type": "PHONE",
+          "text": "81234567891"
+        }
+      ],
+      "allowed": []
+    },
+    {
+      "id": "negative_order",
+      "text": "Номер заказа: 4111 1111 1111 1111. Это идентификатор покупки.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_field_names",
+      "text": "В анкете есть поля: ФИО, адрес, номер телефона, паспорт, карта.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_ordinary_numbers",
+      "text": "Купили 12 коробок по 24 детали. Доставка через 3 дня.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_counting_words",
+      "text": "На занятии повторяли: восемь девять один два три четыре пять шесть семь восемь девять.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_order_date",
+      "text": "Дата заказа: 12.03.1990.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_invalid_inn",
+      "text": "ИНН: 123456789048. Контрольная цифра в примере намеренно неверная.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_invalid_snils",
+      "text": "СНИЛС: 112-233-445 94. Контрольная цифра в примере намеренно неверная.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_invalid_calendar",
+      "text": "Дата рождения: 31.04.1990. Это заведомо невозможная дата.",
+      "expected": [],
+      "allowed": []
+    },
+    {
+      "id": "negative_ip_default",
+      "text": "IP узла: 192.0.2.1; IPv6: 2001:db8::1.",
+      "expected": [],
+      "allowed": []
+    }
+  ]
+}
