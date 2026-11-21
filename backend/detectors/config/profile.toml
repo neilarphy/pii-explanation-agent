@@ -1,5 +1,6 @@
-profile = 'pii-ru-en-v2'
-policy_version = '1.1.0'
+profile = 'pii-ru-en-v3'
+policy_version = '2.0.0'
+resolve_conflicts = true
 emit_threshold = 0.20
 accept_threshold = 0.50
 default_ner_labels = ['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account']
@@ -16,6 +17,12 @@ national_id = 'NATIONAL_ID'
 date_of_birth = 'DATE_OF_BIRTH'
 card_number = 'PAYMENT_CARD'
 bank_account = 'BANK_ACCOUNT'
+inn = 'INN'
+snils = 'SNILS'
+driver_license = 'DRIVER_LICENSE'
+birth_certificate = 'BIRTH_CERTIFICATE'
+military_id = 'MILITARY_ID'
+oms_policy = 'OMS_POLICY'
 
 [[rules]]
 id = 'email_ascii_v1'
@@ -30,10 +37,10 @@ pattern = '\+[1-9][0-9]{7,14}'
 validator = 'phone_plus'
 
 [[rules]]
-id = 'phone_ru_v1'
+id = 'phone_ru_v2'
 type = 'PHONE'
-pattern = '(?:\+7|8)[ -]?\([0-9]{3}\)[ -]?[0-9]{3}[ -]?[0-9]{2}[ -]?[0-9]{2}'
-validator = 'phone_ru'
+pattern = '(?:\+7|8)[^\S\r\n]*(?:[-–—][^\S\r\n]*)?(?:\([0-9]{3}\)|[0-9]{3})[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{3}[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{2}[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{2}'
+validator = 'phone_ru_v2'
 
 [[rules]]
 id = 'card_pan_v1'
@@ -69,3 +76,63 @@ pattern = '''(?ix)
 )
 '''
 validator = 'phone_words_ru'
+
+[[rules]]
+id = 'phone_context_ru_v1'
+type = 'PHONE'
+pattern = '''(?ix)(?<!\w)(?:(?:номер[^\S\r\n]+)?телефон(?:а|у|ом|е|ы)?|тел\.|мобильный)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?P<entity>\+?[0-9](?:[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]){6,14})(?!\w)'''
+validator = 'phone_context'
+
+[[rules]]
+id = 'inn_ru_v1'
+type = 'INN'
+pattern = '''(?ix)(?<!\w)инн(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?P<entity>[0-9](?:[^\S\r\n]*[0-9]){11}|[0-9](?:[^\S\r\n]*[0-9]){9})(?!\w)'''
+validator = 'inn'
+
+[[rules]]
+id = 'snils_ru_v1'
+type = 'SNILS'
+pattern = '''(?ix)(?<!\w)(?:снилс(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?)?(?P<entity>[0-9]{3}[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{3}[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{3}[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{2})(?!\w)'''
+validator = 'snils'
+
+[[rules]]
+id = 'passport_ru_v1'
+type = 'PASSPORT'
+pattern = '''(?ix)(?<!\w)паспорт(?:а|у|е|ом)?(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:(?i:сер(?:ия|ии|\.))[^\S\r\n]*(?:[:№][^\S\r\n]*)?)?(?P<entity>[0-9]{2}[^\S\r\n]*[0-9]{2}[^\S\r\n]*(?:(?:,[^\S\r\n]*)?(?:(?i:номер)|№)[^\S\r\n]*(?::[^\S\r\n]*)?|[-–—][^\S\r\n]*)?[0-9]{6})(?!\w)'''
+validator = 'passport_ru'
+
+[[rules]]
+id = 'driver_license_ru_v1'
+type = 'DRIVER_LICENSE'
+pattern = '''(?ix)(?<!\w)(?:водительск(?:ое|ого)[^\S\r\n]+удостоверени(?:е|я)|права)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:(?i:сер(?:ия|ии|\.))[^\S\r\n]*(?:[:№][^\S\r\n]*)?)?(?P<entity>[0-9]{2}[^\S\r\n]*[0-9]{2}[^\S\r\n]*(?:(?:,[^\S\r\n]*)?(?:(?i:номер)|№)[^\S\r\n]*(?::[^\S\r\n]*)?|[-–—][^\S\r\n]*)?[0-9]{6})(?!\w)'''
+validator = 'driver_license_ru'
+
+[[rules]]
+id = 'birth_certificate_ru_v1'
+type = 'BIRTH_CERTIFICATE'
+pattern = '''(?x)(?<!\w)(?:(?i:свидетельств(?:о|а)[^\S\r\n]+о[^\S\r\n]+рождении)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:(?i:сер(?:ия|ии|\.))[^\S\r\n]*(?:[:№][^\S\r\n]*)?)?)?(?P<entity>[IVXLCDM]{1,12}[^\S\r\n]*[-–—][^\S\r\n]*[А-ЯЁ]{2}[^\S\r\n]*(?:(?:,[^\S\r\n]*)?(?:(?i:номер)|№)[^\S\r\n]*(?::[^\S\r\n]*)?|[-–—][^\S\r\n]*)?[0-9]{6})(?!\w)'''
+validator = 'birth_certificate'
+
+[[rules]]
+id = 'military_id_ru_v1'
+type = 'MILITARY_ID'
+pattern = '''(?x)(?<!\w)(?:(?i:военн(?:ый|ого)[^\S\r\n]+билет(?:а)?)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:(?i:сер(?:ия|ии|\.))[^\S\r\n]*(?:[:№][^\S\r\n]*)?)?)?(?P<entity>[А-ЯЁ]{2}[^\S\r\n]*(?:(?:,[^\S\r\n]*)?(?:(?i:номер)|№)[^\S\r\n]*(?::[^\S\r\n]*)?|[-–—][^\S\r\n]*)?[0-9]{7})(?!\w)'''
+validator = 'military_id'
+
+[[rules]]
+id = 'oms_policy_ru_v1'
+type = 'OMS_POLICY'
+pattern = '''(?ix)(?<!\w)(?:полис(?:а)?[^\S\r\n]+омс|омс|енп|полис[^\S\r\n]+обязательного[^\S\r\n]+медицинского[^\S\r\n]+страхования)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:номер[^\S\r\n]*[:№]?[^\S\r\n]*)?(?P<entity>[0-9]{4}(?:[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{4}){3})(?!\w)'''
+validator = 'oms_policy'
+
+[[rules]]
+id = 'date_of_birth_v1'
+type = 'DATE_OF_BIRTH'
+pattern = '''(?ix)(?<!\w)(?:дата[^\S\r\n]+рождения|родил(?:ся|ась)|д\.р\.|dob|born(?:[^\S\r\n]+on)?)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?P<entity>[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{1,2}[./-][0-9]{1,2}[./-][0-9]{4})(?!\w)'''
+validator = 'date_of_birth'
+
+[[rules]]
+id = 'address_ru_v1'
+type = 'ADDRESS'
+pattern = '''(?ix)(?<!\w)(?:адрес(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?)?(?P<entity>(?:(?:г\.|город)[^\S\r\n]+[А-ЯЁA-Z0-9][А-ЯЁA-Z0-9 .–—-]{0,70}?,[^\S\r\n]*)?(?:ул\.|улица|пр-т|проспект|пер\.|переулок|ш\.|шоссе|наб\.|набережная)[^\S\r\n]+[А-ЯЁA-Z0-9][А-ЯЁA-Z0-9 .–—-]{0,70}?,[^\S\r\n]*(?:д\.|дом)[^\S\r\n]*[0-9]+[А-ЯЁA-Z]?(?:[/-][0-9]+)?(?:,[^\S\r\n]*(?:корп\.|корпус|стр\.|строение)[^\S\r\n]*[0-9]+[А-ЯЁA-Z]?)?(?:,[^\S\r\n]*(?:кв\.|квартира)[^\S\r\n]*[0-9]+[А-ЯЁA-Z]?)?)(?!\w)'''
+validator = 'address_ru'

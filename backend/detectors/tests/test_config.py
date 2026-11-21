@@ -15,14 +15,14 @@ def clean_environment(monkeypatch):
 @pytest.fixture
 def profile_file(tmp_path):
     path = tmp_path / "experiment.toml"
-    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v2", "experiment-v1")
+    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v3", "experiment-v1")
     path.write_text(source)
     return path
 
 
 def test_default_profile_is_independent_of_working_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert load_profile().name == "pii-ru-en-v2"
+    assert load_profile().name == "pii-ru-en-v3"
 
 
 def test_profile_selected_from_environment(profile_file, monkeypatch):
@@ -48,7 +48,7 @@ def test_environment_is_read_on_each_load(profile_file, monkeypatch):
     monkeypatch.setenv("PROFILE_PATH", str(profile_file))
     assert load_profile().name == "experiment-v1"
     monkeypatch.delenv("PROFILE_PATH")
-    assert load_profile().name == "pii-ru-en-v2"
+    assert load_profile().name == "pii-ru-en-v3"
 
 
 def test_ner_labels_override_selected_profile(profile_file, monkeypatch):
@@ -91,7 +91,7 @@ def test_invalid_toml_has_safe_error(tmp_path, monkeypatch, content):
     ("old", "new"),
     [
         ("profile = 'experiment-v1'", "profile = 12"),
-        ("policy_version = '1.1.0'", ""),
+        ("policy_version = '2.0.0'", ""),
         ("default_ner_labels =", "unused_labels ="),
         ("person = 'PERSON'", "person = 12"),
         ("validator = 'email_ascii'", "validator = 12"),
@@ -140,3 +140,16 @@ def test_duplicate_rule_ids_are_rejected(profile_file, monkeypatch):
     monkeypatch.setenv("PROFILE_PATH", str(profile_file))
     with pytest.raises(ConfigurationError, match=r"^profile: duplicate rule ID$"):
         load_profile()
+
+
+def test_legacy_profile_defaults_to_original_merge_policy(profile_file):
+    profile_file.write_text(profile_file.read_text().replace("resolve_conflicts = true", ""))
+    assert not load_profile(profile_file).resolve_conflicts
+
+
+def test_invalid_conflict_option_is_rejected(profile_file):
+    profile_file.write_text(
+        profile_file.read_text().replace("resolve_conflicts = true", "resolve_conflicts = 'true'")
+    )
+    with pytest.raises(ConfigurationError, match="invalid structure"):
+        load_profile(profile_file)

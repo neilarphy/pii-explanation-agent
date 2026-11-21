@@ -44,14 +44,26 @@ class ModelCandidate(CandidateBase):
     raw_label: str
     window_id: str
     score: float = Field(ge=0, le=1)
-    reason: Literal["model_threshold_passed", "below_model_threshold"]
+    reason: Literal[
+        "model_threshold_passed",
+        "below_model_threshold",
+        "context_mismatch",
+        "superseded_by_specific_rule",
+    ]
 
 
 class RegexCandidate(CandidateBase):
     source: Literal["regex"] = "regex"
     rule_id: str
     score: None = None
-    reason: Literal["rule_passed", "invalid_boundary", "invalid_format", "checksum_failed"]
+    reason: Literal[
+        "rule_passed",
+        "invalid_boundary",
+        "invalid_format",
+        "checksum_failed",
+        "context_mismatch",
+        "superseded_by_specific_rule",
+    ]
 
 
 class WindowTrace(Contract):

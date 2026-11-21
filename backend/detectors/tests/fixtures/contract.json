@@ -26,8 +26,8 @@
     }
   ],
   "trace": {
-    "profile": "pii-ru-en-v2",
-    "policy_version": "1.1.0",
+    "profile": "pii-ru-en-v3",
+    "policy_version": "2.0.0",
     "offset_unit": "unicode_code_point",
     "text_length": 21,
     "model": {
@@ -74,7 +74,7 @@
           "matches": 0
         },
         {
-          "id": "phone_ru_v1",
+          "id": "phone_ru_v2",
           "matches": 0
         },
         {
@@ -83,6 +83,46 @@
         },
         {
           "id": "phone_words_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "phone_context_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "inn_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "snils_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "passport_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "driver_license_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "birth_certificate_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "military_id_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "oms_policy_ru_v1",
+          "matches": 0
+        },
+        {
+          "id": "date_of_birth_v1",
+          "matches": 0
+        },
+        {
+          "id": "address_ru_v1",
           "matches": 0
         }
       ]

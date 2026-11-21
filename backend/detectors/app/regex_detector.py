@@ -6,6 +6,12 @@ from .config import MAX_CANDIDATES, Profile
 from .errors import ConfigurationError, TraceLimitError
 from .observations import RegexMetadata, RegexObservation, RegexRun, RuleCount
 from .phone_words import valid_phone_words
+from .structured import (
+    STRUCTURED_VALIDATORS,
+    non_payment_context,
+    structured_reason,
+    valid_phone_ru,
+)
 
 
 def word_char(char: str) -> bool:
@@ -34,14 +40,29 @@ def valid_boundary(text: str, start: int, end: int, validator: str) -> bool:
             after += 1
         if after < len(text) and text[after].isdigit():
             return False
-    if validator == "card_pan":
+    if validator == "ip_address" and (
+        left == "." or (right == "." and end + 1 < len(text) and text[end + 1] in ".0123456789")
+    ):
+        return False
+    if validator in {
+        "card_pan",
+        "phone_ru_v2",
+        "phone_context",
+        "inn",
+        "snils",
+        "oms_policy",
+        "passport_ru",
+        "driver_license_ru",
+        "birth_certificate",
+        "military_id",
+    }:
         # A greedy 19-digit match must not pass as a prefix of a longer PAN,
         # including the same ASCII separators permitted by the rule.
         before = start - 1
         after = end
-        if before >= 0 and text[before] in " -":
+        while before >= 0 and (text[before].isspace() or text[before] in "-–—"):
             before -= 1
-        if after < len(text) and text[after] in " -":
+        while after < len(text) and (text[after].isspace() or text[after] in "-–—"):
             after += 1
         if (before >= 0 and text[before].isdigit()) or (
             after < len(text) and text[after].isdigit()
@@ -77,10 +98,16 @@ def luhn(digits: str) -> bool:
     return total % 10 == 0
 
 
-def validate(text: str, start: int, end: int, validator: str) -> str:
+def validate(text: str, start: int, end: int, validator: str, resolve_conflicts=False) -> str:
     if not valid_boundary(text, start, end, validator):
         return "invalid_boundary"
     value = text[start:end]
+    if validator in STRUCTURED_VALIDATORS:
+        return structured_reason(value, validator)
+    if validator == "phone_ru_v2":
+        return "rule_passed" if valid_phone_ru(value) else "invalid_format"
+    if validator == "card_pan" and resolve_conflicts and non_payment_context(text, start):
+        return "context_mismatch"
     digits = value.replace(" ", "").replace("-", "")
     if validator == "email_ascii":
         good = valid_email(value)
@@ -114,21 +141,26 @@ class RegexDetector:
 
     def __init__(self, profile: Profile):
         self.rules = profile.rules
+        self.resolve_conflicts = profile.resolve_conflicts
         self.compiled = []
         for rule in self.rules:
-            if rule.validator not in {
-                "email_ascii",
-                "phone_plus",
-                "phone_ru",
-                "phone_words_ru",
-                "card_pan",
-            }:
+            if (
+                rule.validator
+                not in {
+                    "email_ascii",
+                    "phone_plus",
+                    "phone_ru",
+                    "phone_ru_v2",
+                    "phone_words_ru",
+                    "card_pan",
+                }
+                | STRUCTURED_VALIDATORS
+            ):
                 raise ConfigurationError(f"regex rule {rule.id}: unknown validator")
             try:
                 pattern = re.compile(rule.pattern)
             except re.error:
                 raise ConfigurationError(f"regex rule {rule.id}: invalid pattern") from None
-
             if rule.validator == "phone_words_ru" and "phone" not in pattern.groupindex:
                 raise ConfigurationError(f"regex rule {rule.id}: missing phone group")
             self.compiled.append(pattern)
@@ -141,7 +173,12 @@ class RegexDetector:
             count = 0
             if not blank:
                 for match in pattern.finditer(text):
-                    start, end = match.span("phone" if rule.validator == "phone_words_ru" else 0)
+                    group = (
+                        "entity"
+                        if "entity" in pattern.groupindex
+                        else ("phone" if rule.validator == "phone_words_ru" else 0)
+                    )
+                    start, end = match.span(group)
                     if start == end:
                         continue
                     count += 1
@@ -154,7 +191,15 @@ class RegexDetector:
                             order,
                             start,
                             end,
-                            validate(text, start, end, rule.validator),
+                            validate(text, start, end, rule.validator, self.resolve_conflicts),
+                            contextual=match.start(0) < start
+                            or (
+                                rule.type == "PHONE"
+                                and (
+                                    text[start:end].startswith("+")
+                                    or text[start:end].casefold().startswith("плюс")
+                                )
+                            ),
                         )
                     )
             counts.append(RuleCount(rule.id, count))

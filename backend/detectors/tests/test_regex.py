@@ -41,15 +41,15 @@ def test_email(profile, text, spans):
     ]
     assert [(o.start, o.end) for o in accepted] == spans
     assert sum(rule.matches for rule in run.metadata.rules) == len(run.observations)
-    assert len(run.metadata.rules) == 5
+    assert len(run.metadata.rules) == 15
 
 
 @pytest.mark.parametrize(
     ("text", "rule", "reason"),
     [
         ("+12025550123", "phone_plus_v1", "rule_passed"),
-        ("+7 (999) 000-00-00", "phone_ru_v1", "rule_passed"),
-        ("8 (999) 000-00-00", "phone_ru_v1", "rule_passed"),
+        ("+7 (999) 000-00-00", "phone_ru_v2", "rule_passed"),
+        ("8 (999) 000-00-00", "phone_ru_v2", "rule_passed"),
         ("4111 1111 1111 1111", "card_pan_v1", "rule_passed"),
         ("4111 1111 1111 1112", "card_pan_v1", "checksum_failed"),
         ("0000000000000", "card_pan_v1", "invalid_format"),

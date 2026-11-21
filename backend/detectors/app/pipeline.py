@@ -7,6 +7,7 @@ from time import perf_counter
 from uuid import UUID
 
 from .config import MAX_CANDIDATES, Profile
+from .conflicts import resolve_identifier_conflicts
 from .errors import ServiceError, TraceLimitError
 from .observations import (
     ModelDetector,
@@ -29,7 +30,9 @@ from .schemas import (
 logger = logging.getLogger("pii")
 
 
-def merge_observations(text: str, model: ModelRun, regex: RegexRun, threshold: float):
+def merge_observations(
+    text: str, model: ModelRun, regex: RegexRun, threshold: float, *, resolve_conflicts=False
+):
     """Return entities and full candidates, without clocks, mutation or model calls."""
     observations = [*model.observations, *regex.observations]
     if len(observations) > MAX_CANDIDATES:
@@ -52,7 +55,7 @@ def merge_observations(text: str, model: ModelRun, regex: RegexRun, threshold: f
         )
 
     candidates = []
-    groups = {}
+    contextual_ids = set()
     windows = {w.id: w for w in model.metadata.windows}
     rules = {r.id for r in regex.metadata.rules}
     for index, obs in enumerate(sorted(observations, key=key), 1):
@@ -87,9 +90,17 @@ def merge_observations(text: str, model: ModelRun, regex: RegexRun, threshold: f
                 decision="accepted" if accepted else "rejected",
                 reason=obs.reason,
             )
+            if obs.contextual:
+                contextual_ids.add(candidate.id)
         candidates.append(candidate)
-        if accepted:
-            groups.setdefault((obs.start, obs.end, obs.type), []).append(candidate)
+    if resolve_conflicts:
+        resolve_identifier_conflicts(text, candidates, contextual_ids)
+    groups = {}
+    for candidate in candidates:
+        if candidate.decision == "accepted":
+            groups.setdefault((candidate.start, candidate.end, candidate.type), []).append(
+                candidate
+            )
     entities = []
     for index, ((start, end, public_type), members) in enumerate(sorted(groups.items()), 1):
         entity_id = f"e{index}"
@@ -109,7 +120,9 @@ def merge_observations(text: str, model: ModelRun, regex: RegexRun, threshold: f
 
 
 def build_response(text, model, regex, profile, request_id, timings):
-    entities, candidates = merge_observations(text, model, regex, profile.accept_threshold)
+    entities, candidates = merge_observations(
+        text, model, regex, profile.accept_threshold, resolve_conflicts=profile.resolve_conflicts
+    )
     return DetectResponse(
         request_id=UUID(str(request_id)),
         has_pii=bool(entities),

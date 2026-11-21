@@ -42,6 +42,7 @@ class Profile:
     labels: tuple[str, ...]
     public_types: dict[str, str]
     rules: tuple[Rule, ...]
+    resolve_conflicts: bool = False
 
     def public_type(self, label: str) -> str:
         return self.public_types.get(label, label.upper())
@@ -66,6 +67,7 @@ def load_profile(path: Path | None = None) -> Profile:
         name, policy = data["profile"], data["policy_version"]
         emit, accept = data["emit_threshold"], data["accept_threshold"]
         defaults, public_types = data["default_ner_labels"], data["public_types"]
+        resolve_conflicts = data.get("resolve_conflicts", False)
         if (
             not all(isinstance(value, str) and value.strip() for value in (name, policy))
             or not isinstance(defaults, list)
@@ -75,6 +77,7 @@ def load_profile(path: Path | None = None) -> Profile:
                 for key, value in public_types.items()
             )
             or not isinstance(data["rules"], list)
+            or type(resolve_conflicts) is not bool
         ):
             raise ValueError
         rules = tuple(Rule(**rule) for rule in data["rules"])
@@ -98,4 +101,4 @@ def load_profile(path: Path | None = None) -> Profile:
     labels = parse_labels(os.environ.get("NER_LABELS"), defaults)
     if len({rule.id for rule in rules}) != len(rules):
         raise ConfigurationError("profile: duplicate rule ID")
-    return Profile(name, policy, emit, accept, labels, public_types, rules)
+    return Profile(name, policy, emit, accept, labels, public_types, rules, resolve_conflicts)

@@ -24,7 +24,10 @@ class RegexObservation:
     origin_order: int
     start: int
     end: int
-    reason: Literal["rule_passed", "invalid_boundary", "invalid_format", "checksum_failed"]
+    reason: Literal[
+        "rule_passed", "invalid_boundary", "invalid_format", "checksum_failed", "context_mismatch"
+    ]
+    contextual: bool = False
 
 
 @dataclass(frozen=True)

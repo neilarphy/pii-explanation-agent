@@ -12,7 +12,7 @@ pytest.importorskip("httpx", exc_type=ModuleNotFoundError)
 
 from fastapi.testclient import TestClient
 
-from backend.detectors.app.config import DEFAULT_PROFILE_PATH, MAX_BODY, load_profile
+from backend.detectors.app.config import DEFAULT_PROFILE_PATH, MAX_BODY, ROOT, load_profile
 from backend.detectors.app.errors import AdapterContractError, ServiceError, TraceLimitError
 from backend.detectors.app.main import create_app
 from backend.detectors.app.observations import ModelObservation as M
@@ -32,8 +32,8 @@ def client(profile):
 def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, monkeypatch):
     source = (
         DEFAULT_PROFILE_PATH.read_text()
-        .replace("pii-ru-en-v2", "experiment-v1")
-        .replace("policy_version = '1.1.0'", "policy_version = '1.2.0'")
+        .replace("pii-ru-en-v3", "experiment-v1")
+        .replace("policy_version = '2.0.0'", "policy_version = '2.1.0'")
         .replace("emit_threshold = 0.20", "emit_threshold = 0.30")
         .replace("accept_threshold = 0.50", "accept_threshold = 0.70")
         .replace("email_ascii_v1", "experiment_email_v1")
@@ -53,7 +53,7 @@ def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, mon
     result = response.json()
     trace = result["trace"]
     assert result["has_pii"] and result["entities"][0]["type"] == "EMAIL"
-    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "1.2.0"
+    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "2.1.0"
     assert trace["model"]["emit_threshold"] == 0.30
     assert trace["model"]["accept_threshold"] == 0.70
     assert trace["model"]["labels"] == ["person", "passport"]
@@ -149,6 +149,68 @@ def test_invalid_spoken_phone_has_only_rejected_candidate(client):
     assert candidate["entity_id"] is None
 
 
+def test_structured_entities_and_conflict_reasons_over_http(client):
+    expected = {
+        "PHONE": "+7 999 123-45-67",
+        "INN": "123456789047",
+        "SNILS": "112-233-445 95",
+        "PASSPORT": "7518 492137",
+        "DRIVER_LICENSE": "77 14 987654",
+        "BIRTH_CERTIFICATE": "III-АГ 112233",
+        "MILITARY_ID": "МЗ 0045678",
+        "OMS_POLICY": "4111 1111 1111 1111",
+        "DATE_OF_BIRTH": "29.02.2000",
+        "ADDRESS": "г. Казань, пр-т Мира, д. 43, кв. 154",
+    }
+    text = "🙂 e\u0301\r\n" + "\n".join(
+        [
+            "Телефон: " + expected["PHONE"],
+            "ИНН: " + expected["INN"],
+            "СНИЛС: " + expected["SNILS"],
+            "Паспорт: " + expected["PASSPORT"],
+            "Водительское удостоверение: " + expected["DRIVER_LICENSE"],
+            "Свидетельство о рождении: " + expected["BIRTH_CERTIFICATE"],
+            "Военный билет: " + expected["MILITARY_ID"],
+            "Полис ОМС: " + expected["OMS_POLICY"],
+            "Дата рождения: " + expected["DATE_OF_BIRTH"],
+            "Адрес: " + expected["ADDRESS"],
+        ]
+    )
+    response = client.post("/v1/detect", json={"text": text})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_pii"]
+    assert {e["type"]: e["text"] for e in body["entities"]} == expected
+    assert len(body["entities"]) == len(expected)
+    assert body["trace"]["profile"] == "pii-ru-en-v3"
+    assert body["trace"]["policy_version"] == "2.0.0"
+    candidates = {c["id"]: c for c in body["trace"]["candidates"]}
+    for entity in body["entities"]:
+        assert text[entity["start"] : entity["end"]] == entity["text"]
+        for candidate_id in entity["candidate_ids"]:
+            assert candidates[candidate_id]["entity_id"] == entity["id"]
+            assert candidates[candidate_id]["decision"] == "accepted"
+    card = next(c for c in candidates.values() if c["type"] == "PAYMENT_CARD")
+    assert card["decision"] == "rejected" and card["reason"] == "superseded_by_specific_rule"
+    assert card["entity_id"] is None
+
+
+def test_optional_ip_profile_over_http(client):
+    text = "192.0.2.1 и 2001:db8::1"
+    assert not client.post("/v1/detect", json={"text": text}).json()["has_pii"]
+    profile = load_profile(ROOT / "config/profile-with-ip.toml")
+    pipeline = Pipeline(EmptyModel(profile), RegexDetector(profile), profile)
+    with TestClient(create_app(lambda: pipeline)) as ip_client:
+        response = ip_client.post("/v1/detect", json={"text": text})
+    assert response.status_code == 200
+    body = response.json()
+    assert [(e["type"], e["text"]) for e in body["entities"]] == [
+        ("IP_ADDRESS", "192.0.2.1"),
+        ("IP_ADDRESS", "2001:db8::1"),
+    ]
+    assert body["trace"]["profile"] == "pii-ru-en-v3-ip"
+
+
 @pytest.mark.parametrize("text", ["", " \r\n\t", "no matches"])
 def test_blank_and_zero(client, text):
     response = client.post("/v1/detect", json={"text": text})
@@ -162,7 +224,7 @@ def test_blank_and_zero(client, text):
         )
     if not text.strip():
         assert result["trace"]["model"]["windows"] == []
-    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 5
+    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 15
     assert all(v >= 0 for v in result["trace"]["timings_ms"].values())
 
 
