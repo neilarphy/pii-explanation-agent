@@ -5,6 +5,7 @@ import re
 from .config import MAX_CANDIDATES, Profile
 from .errors import ConfigurationError, TraceLimitError
 from .observations import RegexMetadata, RegexObservation, RegexRun, RuleCount
+from .phone_words import valid_phone_words
 
 
 def word_char(char: str) -> bool:
@@ -26,6 +27,13 @@ def valid_boundary(text: str, start: int, end: int, validator: str) -> bool:
         return True
     if (left and word_char(left)) or (right and word_char(right)):
         return False
+    if validator == "phone_words_ru":
+        # Do not accept a spoken prefix of a mixed words-and-digits number.
+        after = end
+        while after < len(text) and (text[after].isspace() or text[after] in ",–—-"):
+            after += 1
+        if after < len(text) and text[after].isdigit():
+            return False
     if validator == "card_pan":
         # A greedy 19-digit match must not pass as a prefix of a longer PAN,
         # including the same ASCII separators permitted by the rule.
@@ -85,6 +93,8 @@ def validate(text: str, start: int, end: int, validator: str) -> str:
             )
             is not None
         )
+    elif validator == "phone_words_ru":
+        good = valid_phone_words(value)
     else:
         good = (
             re.fullmatch(r"[0-9](?:[ -]?[0-9]){12,18}", value) is not None
@@ -106,12 +116,22 @@ class RegexDetector:
         self.rules = profile.rules
         self.compiled = []
         for rule in self.rules:
-            if rule.validator not in {"email_ascii", "phone_plus", "phone_ru", "card_pan"}:
+            if rule.validator not in {
+                "email_ascii",
+                "phone_plus",
+                "phone_ru",
+                "phone_words_ru",
+                "card_pan",
+            }:
                 raise ConfigurationError(f"regex rule {rule.id}: unknown validator")
             try:
-                self.compiled.append(re.compile(rule.pattern))
+                pattern = re.compile(rule.pattern)
             except re.error:
                 raise ConfigurationError(f"regex rule {rule.id}: invalid pattern") from None
+
+            if rule.validator == "phone_words_ru" and "phone" not in pattern.groupindex:
+                raise ConfigurationError(f"regex rule {rule.id}: missing phone group")
+            self.compiled.append(pattern)
 
     def detect(self, text: str) -> RegexRun:
         observations = []
@@ -121,7 +141,7 @@ class RegexDetector:
             count = 0
             if not blank:
                 for match in pattern.finditer(text):
-                    start, end = match.span(0)
+                    start, end = match.span("phone" if rule.validator == "phone_words_ru" else 0)
                     if start == end:
                         continue
                     count += 1

@@ -32,8 +32,8 @@ def client(profile):
 def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, monkeypatch):
     source = (
         DEFAULT_PROFILE_PATH.read_text()
-        .replace("pii-ru-en-v1", "experiment-v1")
-        .replace("policy_version = '1.0.0'", "policy_version = '1.1.0'")
+        .replace("pii-ru-en-v2", "experiment-v1")
+        .replace("policy_version = '1.1.0'", "policy_version = '1.2.0'")
         .replace("emit_threshold = 0.20", "emit_threshold = 0.30")
         .replace("accept_threshold = 0.50", "accept_threshold = 0.70")
         .replace("email_ascii_v1", "experiment_email_v1")
@@ -53,7 +53,7 @@ def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, mon
     result = response.json()
     trace = result["trace"]
     assert result["has_pii"] and result["entities"][0]["type"] == "EMAIL"
-    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "1.1.0"
+    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "1.2.0"
     assert trace["model"]["emit_threshold"] == 0.30
     assert trace["model"]["accept_threshold"] == 0.70
     assert trace["model"]["labels"] == ["person", "passport"]
@@ -110,6 +110,45 @@ def test_content_type_charset(client):
     assert response.json()["has_pii"]
 
 
+@pytest.mark.parametrize(
+    "spoken",
+    [
+        "восемь девять один два три четыре пять шесть семь восемь девять",
+        "восемь девятьсот двенадцать триста сорок пять шестьдесят семь восемьдесят девять",
+    ],
+)
+def test_spoken_phone_http_contract(client, spoken):
+    text = f"🙂 e\u0301\r\nТелефон: {spoken}."
+    response = client.post("/v1/detect", json={"text": text})
+    assert response.status_code == 200
+    result = response.json()
+    assert result["has_pii"] and len(result["entities"]) == 1
+    entity = result["entities"][0]
+    assert entity["type"] == "PHONE" and entity["text"] == spoken
+    assert entity["start"] == text.index(spoken)
+    assert text[entity["start"] : entity["end"]] == spoken
+    candidate = result["trace"]["candidates"][0]
+    assert candidate["source"] == "regex" and candidate["rule_id"] == "phone_words_ru_v1"
+    assert candidate["decision"] == "accepted" and candidate["reason"] == "rule_passed"
+    assert candidate["entity_id"] == entity["id"]
+    assert entity["candidate_ids"] == [candidate["id"]]
+    assert next(
+        rule for rule in result["trace"]["regex"]["rules"] if rule["id"] == "phone_words_ru_v1"
+    ) == {"id": "phone_words_ru_v1", "matches": 1}
+
+
+def test_invalid_spoken_phone_has_only_rejected_candidate(client):
+    text = "Телефон: один два три четыре пять шесть"
+    response = client.post("/v1/detect", json={"text": text})
+    assert response.status_code == 200
+    result = response.json()
+    assert not result["has_pii"] and not result["entities"]
+    candidate = result["trace"]["candidates"][0]
+    assert candidate["rule_id"] == "phone_words_ru_v1"
+    assert candidate["decision"] == "rejected" and candidate["reason"] == "invalid_format"
+    assert candidate["entity_id"] is None
+
+
 @pytest.mark.parametrize("text", ["", " \r\n\t", "no matches"])
 def test_blank_and_zero(client, text):
     response = client.post("/v1/detect", json={"text": text})
@@ -123,7 +162,7 @@ def test_blank_and_zero(client, text):
         )
     if not text.strip():
         assert result["trace"]["model"]["windows"] == []
-    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 4
+    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 5
     assert all(v >= 0 for v in result["trace"]["timings_ms"].values())
 
 

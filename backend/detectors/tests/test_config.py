@@ -15,14 +15,14 @@ def clean_environment(monkeypatch):
 @pytest.fixture
 def profile_file(tmp_path):
     path = tmp_path / "experiment.toml"
-    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v1", "experiment-v1")
+    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v2", "experiment-v1")
     path.write_text(source)
     return path
 
 
 def test_default_profile_is_independent_of_working_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert load_profile().name == "pii-ru-en-v1"
+    assert load_profile().name == "pii-ru-en-v2"
 
 
 def test_profile_selected_from_environment(profile_file, monkeypatch):
@@ -48,7 +48,7 @@ def test_environment_is_read_on_each_load(profile_file, monkeypatch):
     monkeypatch.setenv("PROFILE_PATH", str(profile_file))
     assert load_profile().name == "experiment-v1"
     monkeypatch.delenv("PROFILE_PATH")
-    assert load_profile().name == "pii-ru-en-v1"
+    assert load_profile().name == "pii-ru-en-v2"
 
 
 def test_ner_labels_override_selected_profile(profile_file, monkeypatch):
@@ -91,7 +91,7 @@ def test_invalid_toml_has_safe_error(tmp_path, monkeypatch, content):
     ("old", "new"),
     [
         ("profile = 'experiment-v1'", "profile = 12"),
-        ("policy_version = '1.0.0'", ""),
+        ("policy_version = '1.1.0'", ""),
         ("default_ner_labels =", "unused_labels ="),
         ("person = 'PERSON'", "person = 12"),
         ("validator = 'email_ascii'", "validator = 12"),

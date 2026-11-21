@@ -41,7 +41,7 @@ def test_email(profile, text, spans):
     ]
     assert [(o.start, o.end) for o in accepted] == spans
     assert sum(rule.matches for rule in run.metadata.rules) == len(run.observations)
-    assert len(run.metadata.rules) == 4
+    assert len(run.metadata.rules) == 5
 
 
 @pytest.mark.parametrize(
@@ -96,6 +96,8 @@ import json, sys
 from backend.detectors.app.config import load_profile
 from backend.detectors.app.regex_detector import RegexDetector
 r=RegexDetector(load_profile()).detect('🙂 a@example.org a@example.org')
+spoken=RegexDetector(load_profile()).detect('Телефон: восемь девять один два три четыре пять шесть семь восемь девять')
+assert len(spoken.observations) == 1 and spoken.observations[0].reason == 'rule_passed'
 assert 'torch' not in sys.modules and 'pydantic' not in sys.modules
 print(json.dumps([(o.start,o.end) for o in r.observations]))
 """
