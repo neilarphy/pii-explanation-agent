@@ -1,0 +1,757 @@
+{
+  "provenance": {
+    "evaluation_ref": "origin/feat/agent-iter9",
+    "evaluation_sha": "1ae3290ea9a308604492dbf97a82f54dec98b072",
+    "baseline_ref": "origin/detectors",
+    "baseline_sha": "08990b6860b306a279857e65d65be7d49b3a8181",
+    "completed_at_utc": "2026-11-21T15:38:09.653053+00:00",
+    "image": "sha256:d7eedb19622e53a0308531d266c5a2433a655731c8f76798aaa967187dabf854",
+    "gpu": "NVIDIA GeForce RTX 3060 Laptop GPU",
+    "gpu_memory_mib": 6144,
+    "driver": "580.178.04",
+    "request_url": "http://127.0.0.1:18016/v1/detect",
+    "evaluation_schema_patch": "artifacts/issue16-agent-schema.patch",
+    "evaluation_code_unchanged": [
+      "scripts/run_detector.py",
+      "scripts/evaluate.py",
+      "evaluation/metrics.py",
+      "evaluation/pii_bench.py",
+      "evaluation/redmadrobot.py"
+    ],
+    "llm_calls": 0,
+    "cpu_tests": {
+      "passed": 428,
+      "skipped": 3
+    },
+    "dependency_light_tests": {
+      "passed": 342,
+      "skipped": 17
+    },
+    "gpu_tests": {
+      "passed": 3
+    },
+    "sets": {
+      "redmadrobot": {
+        "sessions": 2841,
+        "http_requests_per_profile": 2841
+      },
+      "pii-bench": {
+        "sessions": 900,
+        "http_requests_per_profile": 1041
+      },
+      "scenarios-v1": {
+        "sessions": 65,
+        "http_requests_per_profile": 295
+      },
+      "hidden-v1": {
+        "sessions": 35,
+        "http_requests_per_profile": 152
+      }
+    },
+    "profile_sha256": {
+      "before": "a0c82787596395f3339e3eb1f2a21044a912789f57415e3eebc6fa793c6fd7c8",
+      "after": "bd69806ea00b1bcb5b26e4aeff9b1bfae5ed3f3d39f1f4b34227c91215e2371a"
+    }
+  },
+  "evaluation": "Unchanged scripts.evaluate/evaluation.metrics score_detector; counts parsed from its generated report.md, ratios recomputed without rounding.",
+  "sets": {
+    "redmadrobot": {
+      "before": {
+        "ADDRESS": {
+          "tp": 419,
+          "fp": 276,
+          "fn": 254,
+          "precision": 0.6028776978417266,
+          "recall": 0.6225854383358098,
+          "f1": 0.6125730994152047
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 93,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "BIRTH_CERTIFICATE": {
+          "tp": 219,
+          "fp": 0,
+          "fn": 122,
+          "precision": 1.0,
+          "recall": 0.6422287390029325,
+          "f1": 0.7821428571428571
+        },
+        "DATE_OF_BIRTH": {
+          "tp": 0,
+          "fp": 147,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "DRIVER_LICENSE": {
+          "tp": 78,
+          "fp": 0,
+          "fn": 293,
+          "precision": 1.0,
+          "recall": 0.21024258760107817,
+          "f1": 0.34743875278396436
+        },
+        "EMAIL": {
+          "tp": 212,
+          "fp": 18,
+          "fn": 9,
+          "precision": 0.9217391304347826,
+          "recall": 0.9592760180995475,
+          "f1": 0.9401330376940134
+        },
+        "MILITARY_ID": {
+          "tp": 190,
+          "fp": 1,
+          "fn": 88,
+          "precision": 0.9947643979057592,
+          "recall": 0.6834532374100719,
+          "f1": 0.8102345415778252
+        },
+        "NATIONAL_ID": {
+          "tp": 109,
+          "fp": 152,
+          "fn": 377,
+          "precision": 0.41762452107279696,
+          "recall": 0.2242798353909465,
+          "f1": 0.2918340026773762
+        },
+        "OMS": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 170,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "OMS_POLICY": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PASSPORT": {
+          "tp": 241,
+          "fp": 224,
+          "fn": 253,
+          "precision": 0.5182795698924731,
+          "recall": 0.48785425101214575,
+          "f1": 0.502606882168926
+        },
+        "PAYMENT_CARD": {
+          "tp": 190,
+          "fp": 81,
+          "fn": 13,
+          "precision": 0.7011070110701108,
+          "recall": 0.9359605911330049,
+          "f1": 0.8016877637130801
+        },
+        "PERSON": {
+          "tp": 1186,
+          "fp": 227,
+          "fn": 78,
+          "precision": 0.8393489030431706,
+          "recall": 0.9382911392405063,
+          "f1": 0.886066492342174
+        },
+        "PHONE": {
+          "tp": 152,
+          "fp": 20,
+          "fn": 21,
+          "precision": 0.8837209302325582,
+          "recall": 0.8786127167630058,
+          "f1": 0.881159420289855
+        },
+        "Всего": {
+          "tp": 2996,
+          "fp": 1240,
+          "fn": 1678,
+          "precision": 0.7072710103871577,
+          "recall": 0.6409927257167308,
+          "f1": 0.6725028058361392
+        }
+      },
+      "after": {
+        "ADDRESS": {
+          "tp": 478,
+          "fp": 276,
+          "fn": 195,
+          "precision": 0.6339522546419099,
+          "recall": 0.7102526002971769,
+          "f1": 0.6699369306236861
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 90,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "BIRTH_CERTIFICATE": {
+          "tp": 221,
+          "fp": 0,
+          "fn": 120,
+          "precision": 1.0,
+          "recall": 0.6480938416422287,
+          "f1": 0.7864768683274022
+        },
+        "DATE_OF_BIRTH": {
+          "tp": 0,
+          "fp": 147,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "DRIVER_LICENSE": {
+          "tp": 91,
+          "fp": 0,
+          "fn": 280,
+          "precision": 1.0,
+          "recall": 0.24528301886792453,
+          "f1": 0.3939393939393939
+        },
+        "EMAIL": {
+          "tp": 212,
+          "fp": 18,
+          "fn": 9,
+          "precision": 0.9217391304347826,
+          "recall": 0.9592760180995475,
+          "f1": 0.9401330376940134
+        },
+        "MILITARY_ID": {
+          "tp": 190,
+          "fp": 1,
+          "fn": 88,
+          "precision": 0.9947643979057592,
+          "recall": 0.6834532374100719,
+          "f1": 0.8102345415778252
+        },
+        "NATIONAL_ID": {
+          "tp": 109,
+          "fp": 152,
+          "fn": 377,
+          "precision": 0.41762452107279696,
+          "recall": 0.2242798353909465,
+          "f1": 0.2918340026773762
+        },
+        "OMS": {
+          "tp": 58,
+          "fp": 1,
+          "fn": 112,
+          "precision": 0.9830508474576272,
+          "recall": 0.3411764705882353,
+          "f1": 0.5065502183406113
+        },
+        "PASSPORT": {
+          "tp": 353,
+          "fp": 230,
+          "fn": 141,
+          "precision": 0.6054888507718696,
+          "recall": 0.7145748987854251,
+          "f1": 0.6555246053853296
+        },
+        "PAYMENT_CARD": {
+          "tp": 190,
+          "fp": 80,
+          "fn": 13,
+          "precision": 0.7037037037037037,
+          "recall": 0.9359605911330049,
+          "f1": 0.8033826638477801
+        },
+        "PERSON": {
+          "tp": 1186,
+          "fp": 227,
+          "fn": 78,
+          "precision": 0.8393489030431706,
+          "recall": 0.9382911392405063,
+          "f1": 0.886066492342174
+        },
+        "PHONE": {
+          "tp": 152,
+          "fp": 20,
+          "fn": 21,
+          "precision": 0.8837209302325582,
+          "recall": 0.8786127167630058,
+          "f1": 0.881159420289855
+        },
+        "Всего": {
+          "tp": 3240,
+          "fp": 1242,
+          "fn": 1434,
+          "precision": 0.7228915662650602,
+          "recall": 0.693196405648267,
+          "f1": 0.7077326343381389
+        }
+      }
+    },
+    "pii-bench": {
+      "before": {
+        "ADDRESS": {
+          "tp": 99,
+          "fp": 29,
+          "fn": 7,
+          "precision": 0.7734375,
+          "recall": 0.9339622641509434,
+          "f1": 0.8461538461538461
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 9,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "EMAIL": {
+          "tp": 103,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.9537037037037037,
+          "recall": 1.0,
+          "f1": 0.976303317535545
+        },
+        "NATIONAL_ID": {
+          "tp": 4,
+          "fp": 9,
+          "fn": 71,
+          "precision": 0.3076923076923077,
+          "recall": 0.05333333333333334,
+          "f1": 0.09090909090909091
+        },
+        "PASSPORT": {
+          "tp": 39,
+          "fp": 14,
+          "fn": 11,
+          "precision": 0.7358490566037735,
+          "recall": 0.78,
+          "f1": 0.7572815533980582
+        },
+        "PAYMENT_CARD": {
+          "tp": 22,
+          "fp": 13,
+          "fn": 0,
+          "precision": 0.6285714285714286,
+          "recall": 1.0,
+          "f1": 0.7719298245614035
+        },
+        "PERSON": {
+          "tp": 157,
+          "fp": 20,
+          "fn": 1,
+          "precision": 0.8870056497175142,
+          "recall": 0.9936708860759493,
+          "f1": 0.9373134328358209
+        },
+        "PHONE": {
+          "tp": 147,
+          "fp": 7,
+          "fn": 0,
+          "precision": 0.9545454545454546,
+          "recall": 1.0,
+          "f1": 0.9767441860465116
+        },
+        "Всего": {
+          "tp": 571,
+          "fp": 106,
+          "fn": 90,
+          "precision": 0.843426883308715,
+          "recall": 0.8638426626323752,
+          "f1": 0.8535127055306427
+        }
+      },
+      "after": {
+        "ADDRESS": {
+          "tp": 105,
+          "fp": 29,
+          "fn": 1,
+          "precision": 0.7835820895522388,
+          "recall": 0.9905660377358491,
+          "f1": 0.875
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 9,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "EMAIL": {
+          "tp": 103,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.9537037037037037,
+          "recall": 1.0,
+          "f1": 0.976303317535545
+        },
+        "NATIONAL_ID": {
+          "tp": 4,
+          "fp": 9,
+          "fn": 71,
+          "precision": 0.3076923076923077,
+          "recall": 0.05333333333333334,
+          "f1": 0.09090909090909091
+        },
+        "PASSPORT": {
+          "tp": 50,
+          "fp": 15,
+          "fn": 0,
+          "precision": 0.7692307692307693,
+          "recall": 1.0,
+          "f1": 0.8695652173913043
+        },
+        "PAYMENT_CARD": {
+          "tp": 22,
+          "fp": 13,
+          "fn": 0,
+          "precision": 0.6285714285714286,
+          "recall": 1.0,
+          "f1": 0.7719298245614035
+        },
+        "PERSON": {
+          "tp": 157,
+          "fp": 20,
+          "fn": 1,
+          "precision": 0.8870056497175142,
+          "recall": 0.9936708860759493,
+          "f1": 0.9373134328358209
+        },
+        "PHONE": {
+          "tp": 147,
+          "fp": 6,
+          "fn": 0,
+          "precision": 0.9607843137254902,
+          "recall": 1.0,
+          "f1": 0.98
+        },
+        "Всего": {
+          "tp": 588,
+          "fp": 106,
+          "fn": 73,
+          "precision": 0.8472622478386167,
+          "recall": 0.8895612708018155,
+          "f1": 0.8678966789667897
+        }
+      }
+    },
+    "scenarios-v1": {
+      "before": {
+        "ADDRESS": {
+          "tp": 11,
+          "fp": 18,
+          "fn": 0,
+          "precision": 0.3793103448275862,
+          "recall": 1.0,
+          "f1": 0.55
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 3,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "EMAIL": {
+          "tp": 7,
+          "fp": 5,
+          "fn": 3,
+          "precision": 0.5833333333333334,
+          "recall": 0.7,
+          "f1": 0.6363636363636364
+        },
+        "INN": {
+          "tp": 0,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "NATIONAL_ID": {
+          "tp": 1,
+          "fp": 10,
+          "fn": 14,
+          "precision": 0.09090909090909091,
+          "recall": 0.06666666666666667,
+          "f1": 0.07692307692307693
+        },
+        "PASSPORT": {
+          "tp": 5,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.7142857142857143,
+          "recall": 1.0,
+          "f1": 0.8333333333333334
+        },
+        "PAYMENT_CARD": {
+          "tp": 0,
+          "fp": 17,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PERSON": {
+          "tp": 7,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.875,
+          "recall": 1.0,
+          "f1": 0.9333333333333333
+        },
+        "PHONE": {
+          "tp": 19,
+          "fp": 9,
+          "fn": 11,
+          "precision": 0.6785714285714286,
+          "recall": 0.6333333333333333,
+          "f1": 0.6551724137931034
+        },
+        "Всего": {
+          "tp": 50,
+          "fp": 70,
+          "fn": 28,
+          "precision": 0.4166666666666667,
+          "recall": 0.6410256410256411,
+          "f1": 0.5050505050505051
+        }
+      },
+      "after": {
+        "ADDRESS": {
+          "tp": 11,
+          "fp": 18,
+          "fn": 0,
+          "precision": 0.3793103448275862,
+          "recall": 1.0,
+          "f1": 0.55
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 3,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "EMAIL": {
+          "tp": 7,
+          "fp": 5,
+          "fn": 3,
+          "precision": 0.5833333333333334,
+          "recall": 0.7,
+          "f1": 0.6363636363636364
+        },
+        "INN": {
+          "tp": 0,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "NATIONAL_ID": {
+          "tp": 1,
+          "fp": 10,
+          "fn": 14,
+          "precision": 0.09090909090909091,
+          "recall": 0.06666666666666667,
+          "f1": 0.07692307692307693
+        },
+        "PASSPORT": {
+          "tp": 5,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.7142857142857143,
+          "recall": 1.0,
+          "f1": 0.8333333333333334
+        },
+        "PAYMENT_CARD": {
+          "tp": 0,
+          "fp": 17,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PERSON": {
+          "tp": 7,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.875,
+          "recall": 1.0,
+          "f1": 0.9333333333333333
+        },
+        "PHONE": {
+          "tp": 19,
+          "fp": 9,
+          "fn": 11,
+          "precision": 0.6785714285714286,
+          "recall": 0.6333333333333333,
+          "f1": 0.6551724137931034
+        },
+        "Всего": {
+          "tp": 50,
+          "fp": 70,
+          "fn": 28,
+          "precision": 0.4166666666666667,
+          "recall": 0.6410256410256411,
+          "f1": 0.5050505050505051
+        }
+      }
+    },
+    "hidden-v1": {
+      "before": {
+        "ADDRESS": {
+          "tp": 4,
+          "fp": 11,
+          "fn": 1,
+          "precision": 0.26666666666666666,
+          "recall": 0.8,
+          "f1": 0.4
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MILITARY_ID": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 10,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "NATIONAL_ID": {
+          "tp": 0,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PASSPORT": {
+          "tp": 0,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PAYMENT_CARD": {
+          "tp": 0,
+          "fp": 4,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PERSON": {
+          "tp": 20,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.9090909090909091,
+          "recall": 1.0,
+          "f1": 0.9523809523809523
+        },
+        "Всего": {
+          "tp": 24,
+          "fp": 25,
+          "fn": 11,
+          "precision": 0.4897959183673469,
+          "recall": 0.6857142857142857,
+          "f1": 0.5714285714285714
+        }
+      },
+      "after": {
+        "ADDRESS": {
+          "tp": 4,
+          "fp": 11,
+          "fn": 1,
+          "precision": 0.26666666666666666,
+          "recall": 0.8,
+          "f1": 0.4
+        },
+        "BANK_ACCOUNT": {
+          "tp": 0,
+          "fp": 1,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "MILITARY_ID": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 10,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "NATIONAL_ID": {
+          "tp": 0,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PASSPORT": {
+          "tp": 0,
+          "fp": 5,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PAYMENT_CARD": {
+          "tp": 0,
+          "fp": 4,
+          "fn": 0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        },
+        "PERSON": {
+          "tp": 20,
+          "fp": 2,
+          "fn": 0,
+          "precision": 0.9090909090909091,
+          "recall": 1.0,
+          "f1": 0.9523809523809523
+        },
+        "Всего": {
+          "tp": 24,
+          "fp": 25,
+          "fn": 11,
+          "precision": 0.4897959183673469,
+          "recall": 0.6857142857142857,
+          "f1": 0.5714285714285714
+        }
+      }
+    }
+  },
+  "acceptance": {
+    "redmadrobot_total_improves": true,
+    "redmadrobot_PASSPORT_does_not_regress": true,
+    "redmadrobot_NATIONAL_ID_does_not_regress": true,
+    "pii-bench_total_within_tolerance": true,
+    "pii-bench_existing_types_within_tolerance": true,
+    "scenarios-v1_total_within_tolerance": true,
+    "scenarios-v1_existing_types_within_tolerance": true
+  },
+  "all_acceptance_checks_pass": true
+}

@@ -1,0 +1,7 @@
+--- a/backend/schemas/detection.py
++++ b/backend/schemas/detection.py
+@@ -15,2 +15,4 @@
+     "checksum_failed",
++    "context_mismatch",
++    "superseded_by_specific_rule",
+ ]
