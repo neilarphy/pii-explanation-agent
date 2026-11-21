@@ -26,8 +26,8 @@
     }
   ],
   "trace": {
-    "profile": "pii-ru-en-v3",
-    "policy_version": "2.0.0",
+    "profile": "pii-ru-en-v4",
+    "policy_version": "2.1.0",
     "offset_unit": "unicode_code_point",
     "text_length": 21,
     "model": {
@@ -98,7 +98,7 @@
           "matches": 0
         },
         {
-          "id": "passport_ru_v1",
+          "id": "passport_ru_v2",
           "matches": 0
         },
         {
@@ -122,7 +122,11 @@
           "matches": 0
         },
         {
-          "id": "address_ru_v1",
+          "id": "address_ru_v2",
+          "matches": 0
+        },
+        {
+          "id": "address_context_ru_v1",
           "matches": 0
         }
       ]

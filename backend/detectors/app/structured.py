@@ -16,6 +16,16 @@ NON_PAYMENT = re.compile(
     rf"договор(?:а)?|инн|кпп|огрн|бик|(?:расч[её]тный|корреспондентский){H}+сч[её]т)"
     rf"(?!\w){H}*(?:[:№=–—-]{H}*)?$"
 )
+PASSPORT_CONTEXT = re.compile(r"(?i)(?<!\w)паспорт(?:а|у|е|ом|ы|ов|ами|ные|ных|ным|ными)?(?!\w)")
+OTHER_DOCUMENT_FIELD = re.compile(
+    rf"(?i)(?<!\w)(?:инн|снилс|огрн|кпп|телефон(?:а)?|тел\.?|мобильный|"
+    rf"номер{H}+(?:заказа|договора|телефона|сч[её]та|заявки|накладной)|"
+    rf"заказ(?:а)?|договор(?:а)?|сч[её]т(?:а)?|карт[аы]|полис(?:а)?|омс|"
+    rf"водительск(?:ое|ого){H}+удостоверени(?:е|я)|права|"
+    rf"(?:расч[её]тный|корреспондентский){H}+сч[её]т)"
+    rf"(?!\w){H}*(?:[:№=–—-]{H}*)?(?:номер{H}*[:№]?{H}*)?$"
+)
+CONTEXT_BREAK = re.compile(r'[\r\n";]')
 
 
 def ascii_digits(value: str) -> str:
@@ -24,6 +34,17 @@ def ascii_digits(value: str) -> str:
 
 def non_payment_context(text: str, start: int) -> bool:
     return NON_PAYMENT.search(text, max(0, start - 100), start) is not None
+
+
+def passport_context(text: str, start: int, end: int) -> bool:
+    """Require nearby passport wording without crossing fields or dialog strings."""
+    before = CONTEXT_BREAK.split(text[max(0, start - 140) : start])[-1]
+    after = CONTEXT_BREAK.split(text[end : end + 100])[0]
+    if (start and text[start - 1] in "+@") or (end < len(text) and text[end] == "@"):
+        return False
+    if OTHER_DOCUMENT_FIELD.search(before):
+        return False
+    return PASSPORT_CONTEXT.search(before) is not None or PASSPORT_CONTEXT.search(after) is not None
 
 
 def inn_checksum(digits: str) -> bool:
@@ -89,7 +110,14 @@ def structured_reason(value: str, validator: str) -> str:
         if validator == "snils" and not snils_checksum(digits):
             return "checksum_failed"
         return "rule_passed"
-    if validator in {"passport_ru", "driver_license_ru"}:
+    if validator == "passport_context_ru":
+        # Keep source spelling, including a paired series/number designation.
+        value = re.sub(rf"(?i)^сер(?:ия|ии|\.){H}*[:№]?{H}*", "", value)
+        good = (
+            DOC10.fullmatch(value) is not None
+            or re.fullmatch(rf"(?i)(?:номер|№){H}*:?{H}*[0-9]{{6}}", value) is not None
+        ) and len(set(digits)) > 1
+    elif validator in {"passport_ru", "driver_license_ru"}:
         good = DOC10.fullmatch(value) is not None and len(set(digits)) > 1
     elif validator == "birth_certificate":
         match = BIRTH.fullmatch(value)
@@ -126,6 +154,7 @@ STRUCTURED_VALIDATORS = frozenset(
         "snils",
         "oms_policy",
         "passport_ru",
+        "passport_context_ru",
         "driver_license_ru",
         "birth_certificate",
         "military_id",

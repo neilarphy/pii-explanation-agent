@@ -41,7 +41,7 @@ def test_email(profile, text, spans):
     ]
     assert [(o.start, o.end) for o in accepted] == spans
     assert sum(rule.matches for rule in run.metadata.rules) == len(run.observations)
-    assert len(run.metadata.rules) == 15
+    assert len(run.metadata.rules) == 16
 
 
 @pytest.mark.parametrize(

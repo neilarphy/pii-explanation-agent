@@ -9,6 +9,7 @@ from .phone_words import valid_phone_words
 from .structured import (
     STRUCTURED_VALIDATORS,
     non_payment_context,
+    passport_context,
     structured_reason,
     valid_phone_ru,
 )
@@ -52,6 +53,7 @@ def valid_boundary(text: str, start: int, end: int, validator: str) -> bool:
         "snils",
         "oms_policy",
         "passport_ru",
+        "passport_context_ru",
         "driver_license_ru",
         "birth_certificate",
         "military_id",
@@ -102,6 +104,8 @@ def validate(text: str, start: int, end: int, validator: str, resolve_conflicts=
     if not valid_boundary(text, start, end, validator):
         return "invalid_boundary"
     value = text[start:end]
+    if validator == "passport_context_ru" and not passport_context(text, start, end):
+        return "context_mismatch"
     if validator in STRUCTURED_VALIDATORS:
         return structured_reason(value, validator)
     if validator == "phone_ru_v2":
@@ -192,7 +196,8 @@ class RegexDetector:
                             start,
                             end,
                             validate(text, start, end, rule.validator, self.resolve_conflicts),
-                            contextual=match.start(0) < start
+                            contextual=rule.validator == "passport_context_ru"
+                            or match.start(0) < start
                             or (
                                 rule.type == "PHONE"
                                 and (

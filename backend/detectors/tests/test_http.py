@@ -32,8 +32,8 @@ def client(profile):
 def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, monkeypatch):
     source = (
         DEFAULT_PROFILE_PATH.read_text()
-        .replace("pii-ru-en-v3", "experiment-v1")
-        .replace("policy_version = '2.0.0'", "policy_version = '2.1.0'")
+        .replace("pii-ru-en-v4", "experiment-v1")
+        .replace("policy_version = '2.1.0'", "policy_version = '2.2.0'")
         .replace("emit_threshold = 0.20", "emit_threshold = 0.30")
         .replace("accept_threshold = 0.50", "accept_threshold = 0.70")
         .replace("email_ascii_v1", "experiment_email_v1")
@@ -53,7 +53,7 @@ def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, mon
     result = response.json()
     trace = result["trace"]
     assert result["has_pii"] and result["entities"][0]["type"] == "EMAIL"
-    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "2.1.0"
+    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "2.2.0"
     assert trace["model"]["emit_threshold"] == 0.30
     assert trace["model"]["accept_threshold"] == 0.70
     assert trace["model"]["labels"] == ["person", "passport"]
@@ -149,6 +149,25 @@ def test_invalid_spoken_phone_has_only_rejected_candidate(client):
     assert candidate["entity_id"] is None
 
 
+def test_address_and_passport_extensions_over_http(client):
+    address = "Самара, Садовый проспект 42, корпус 2, кв 15, подъезд 3"
+    passport = "серия 7518 номер 492137"
+    text = f"🙂 e\u0301\r\nАдрес: {address}; паспортные данные: {passport}."
+    response = client.post("/v1/detect", json={"text": text})
+    assert response.status_code == 200
+    body = response.json()
+    assert {(e["type"], e["text"]) for e in body["entities"]} == {
+        ("ADDRESS", address),
+        ("PASSPORT", passport),
+    }
+    assert body["trace"]["profile"] == "pii-ru-en-v4"
+    for entity in body["entities"]:
+        assert text[entity["start"] : entity["end"]] == entity["text"]
+        evidence = [c for c in body["trace"]["candidates"] if c["entity_id"] == entity["id"]]
+        assert set(entity["candidate_ids"]) == {c["id"] for c in evidence}
+        assert all(c["decision"] == "accepted" and c["reason"] == "rule_passed" for c in evidence)
+
+
 def test_structured_entities_and_conflict_reasons_over_http(client):
     expected = {
         "PHONE": "+7 999 123-45-67",
@@ -182,8 +201,8 @@ def test_structured_entities_and_conflict_reasons_over_http(client):
     assert body["has_pii"]
     assert {e["type"]: e["text"] for e in body["entities"]} == expected
     assert len(body["entities"]) == len(expected)
-    assert body["trace"]["profile"] == "pii-ru-en-v3"
-    assert body["trace"]["policy_version"] == "2.0.0"
+    assert body["trace"]["profile"] == "pii-ru-en-v4"
+    assert body["trace"]["policy_version"] == "2.1.0"
     candidates = {c["id"]: c for c in body["trace"]["candidates"]}
     for entity in body["entities"]:
         assert text[entity["start"] : entity["end"]] == entity["text"]
@@ -208,7 +227,7 @@ def test_optional_ip_profile_over_http(client):
         ("IP_ADDRESS", "192.0.2.1"),
         ("IP_ADDRESS", "2001:db8::1"),
     ]
-    assert body["trace"]["profile"] == "pii-ru-en-v3-ip"
+    assert body["trace"]["profile"] == "pii-ru-en-v4-ip"
 
 
 @pytest.mark.parametrize("text", ["", " \r\n\t", "no matches"])
@@ -224,7 +243,7 @@ def test_blank_and_zero(client, text):
         )
     if not text.strip():
         assert result["trace"]["model"]["windows"] == []
-    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 15
+    assert [r["matches"] for r in result["trace"]["regex"]["rules"]] == [0] * 16
     assert all(v >= 0 for v in result["trace"]["timings_ms"].values())
 
 

@@ -122,7 +122,8 @@ def summarize(records):
             predicted = {
                 (TYPE_MAP.get(e["type"], e["type"]), e["start"], e["end"]) for e in body["entities"]
             }
-            latency.append(record["client_ms"])
+            if record.get("client_ms") is not None:
+                latency.append(record["client_ms"])
         else:
             error_count += 1
         maximal = maximal_spans(predicted)
@@ -277,7 +278,7 @@ def main():
                 "unsupported": "All gold types count towards full metrics, including types absent from the detector",
                 "maximal": "Remove same-type fully contained predictions; retain disjoint and cross-type spans",
                 "matching": "Maximum one-to-one, typed exact or typed overlap; wrong labels incur FP and FN",
-                "raw": "Unchanged service predictions; no test-set tuning or runtime changes",
+                "raw": "Exact entities from the supplied response records, without span postprocessing",
             },
             "splits": {
                 s: summarize([r for r in records if r["split"] == s])
