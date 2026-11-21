@@ -15,14 +15,14 @@ def clean_environment(monkeypatch):
 @pytest.fixture
 def profile_file(tmp_path):
     path = tmp_path / "experiment.toml"
-    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v4", "experiment-v1")
+    source = DEFAULT_PROFILE_PATH.read_text().replace("pii-ru-en-v5", "experiment-v1")
     path.write_text(source)
     return path
 
 
 def test_default_profile_is_independent_of_working_directory(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    assert load_profile().name == "pii-ru-en-v4"
+    assert load_profile().name == "pii-ru-en-v5"
 
 
 def test_profile_selected_from_environment(profile_file, monkeypatch):
@@ -48,7 +48,7 @@ def test_environment_is_read_on_each_load(profile_file, monkeypatch):
     monkeypatch.setenv("PROFILE_PATH", str(profile_file))
     assert load_profile().name == "experiment-v1"
     monkeypatch.delenv("PROFILE_PATH")
-    assert load_profile().name == "pii-ru-en-v4"
+    assert load_profile().name == "pii-ru-en-v5"
 
 
 def test_ner_labels_override_selected_profile(profile_file, monkeypatch):
@@ -59,6 +59,48 @@ def test_ner_labels_override_selected_profile(profile_file, monkeypatch):
     assert selected.labels == ("employee_id", "passport")
     assert selected.public_type("employee_id") == "EMPLOYEE_ID"
     assert selected.public_type("passport") == "PASSPORT"
+    assert selected.model_groups == (("employee_id", "passport"),)
+
+
+@pytest.mark.parametrize(
+    "groups", ["[]", "[['person']]", "[['person'], ['person']]", "'private'", "[[]]"]
+)
+def test_invalid_ner_groups_are_rejected(profile_file, groups):
+    lines = profile_file.read_text().splitlines()
+    profile_file.write_text(
+        "\n".join(
+            "ner_label_groups = " + groups if line.startswith("ner_label_groups =") else line
+            for line in lines
+        )
+    )
+    with pytest.raises(ConfigurationError, match=r"^profile:"):
+        load_profile(profile_file)
+
+
+def test_legacy_profiles_use_one_schema(profile_file):
+    profile_file.write_text(
+        "\n".join(
+            line
+            for line in profile_file.read_text().splitlines()
+            if not line.startswith(("ner_label_groups =", "ner_schema_labels ="))
+        )
+    )
+    selected = load_profile(profile_file)
+    assert selected.model_groups == (selected.labels,)
+
+
+@pytest.mark.parametrize(
+    "schemas", ["[]", "[['unknown'],['medical_policy']]", "[['person']]", "'private'"]
+)
+def test_invalid_schema_context_is_rejected(profile_file, schemas):
+    profile_file.write_text(
+        "\n".join(
+            "ner_schema_labels = " + schemas if line.startswith("ner_schema_labels =") else line
+            for line in profile_file.read_text().splitlines()
+        )
+    )
+    with pytest.raises(ConfigurationError, match=r"^profile:"):
+        load_profile(profile_file)
 
 
 @pytest.mark.parametrize("value", ["", " ", "\t"])
@@ -91,7 +133,7 @@ def test_invalid_toml_has_safe_error(tmp_path, monkeypatch, content):
     ("old", "new"),
     [
         ("profile = 'experiment-v1'", "profile = 12"),
-        ("policy_version = '2.1.0'", ""),
+        ("policy_version = '3.0.0'", ""),
         ("default_ner_labels =", "unused_labels ="),
         ("person = 'PERSON'", "person = 12"),
         ("validator = 'email_ascii'", "validator = 12"),

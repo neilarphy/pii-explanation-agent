@@ -42,6 +42,10 @@ def test_labels_default_order(profile, monkeypatch):
         "date_of_birth",
         "card_number",
         "bank_account",
+        "driver_license",
+        "birth_certificate",
+        "military_id",
+        "medical_policy",
     )
     monkeypatch.setenv("NER_LABELS", "person, passport")
     assert load_profile().labels == ("person", "passport")

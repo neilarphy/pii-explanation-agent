@@ -49,6 +49,8 @@ class ModelMetadata:
     accept_threshold: float
     labels: tuple[str, ...]
     windows: tuple[Window, ...]
+    label_groups: tuple[tuple[str, ...], ...] = ()
+    schema_labels: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)

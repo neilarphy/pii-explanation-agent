@@ -1,9 +1,11 @@
-profile = 'pii-ru-en-v4-ip'
-policy_version = '2.1.0'
+profile = 'pii-ru-en-v5-ip'
+policy_version = '3.0.0'
 resolve_conflicts = true
 emit_threshold = 0.20
 accept_threshold = 0.50
-default_ner_labels = ['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account']
+default_ner_labels = ['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account', 'driver_license', 'birth_certificate', 'military_id', 'medical_policy']
+ner_label_groups = [['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account'], ['driver_license', 'birth_certificate', 'military_id', 'medical_policy']]
+ner_schema_labels = [['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account'], ['person', 'first_name', 'last_name', 'address', 'email', 'phone', 'passport', 'national_id', 'date_of_birth', 'card_number', 'bank_account', 'driver_license', 'birth_certificate', 'military_id', 'medical_policy']]
 
 [public_types]
 person = 'PERSON'
@@ -22,7 +24,8 @@ snils = 'SNILS'
 driver_license = 'DRIVER_LICENSE'
 birth_certificate = 'BIRTH_CERTIFICATE'
 military_id = 'MILITARY_ID'
-oms_policy = 'OMS_POLICY'
+medical_policy = 'OMS'
+oms_policy = 'OMS'
 ip_address = 'IP_ADDRESS'
 
 [[rules]]
@@ -125,9 +128,9 @@ pattern = '''(?x)(?<!\w)(?:(?i:военн(?:ый|ого)[^\S\r\n]+билет(?:�
 validator = 'military_id'
 
 [[rules]]
-id = 'oms_policy_ru_v1'
-type = 'OMS_POLICY'
-pattern = '''(?ix)(?<!\w)(?:полис(?:а)?[^\S\r\n]+омс|омс|енп|полис[^\S\r\n]+обязательного[^\S\r\n]+медицинского[^\S\r\n]+страхования)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:номер[^\S\r\n]*[:№]?[^\S\r\n]*)?(?P<entity>[0-9]{4}(?:[^\S\r\n]*(?:[-–—][^\S\r\n]*)?[0-9]{4}){3})(?!\w)'''
+id = 'oms_policy_ru_v2'
+type = 'OMS'
+pattern = '''(?ix)(?<!\w)(?:полис(?:а)?[^\S\r\n]+омс|омс|енп|полис[^\S\r\n]+обязательного[^\S\r\n]+медицинского[^\S\r\n]+страхования)(?!\w)[^\S\r\n]*(?:[:,№=–—-][^\S\r\n]*)?(?:номер[^\S\r\n]*[:№]?[^\S\r\n]*)?(?P<entity>[0-9]{4}(?:[^\S\r\n]*(?:[-.–—][^\S\r\n]*)?[0-9]{4}){3})(?!\w)'''
 validator = 'oms_policy'
 
 [[rules]]

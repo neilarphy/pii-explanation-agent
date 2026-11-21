@@ -18,6 +18,8 @@ def model_run(profile, observations=(), windows=None, blank=False):
             profile.accept_threshold,
             profile.labels,
             tuple(windows),
+            profile.model_groups,
+            profile.model_schemas,
         ),
     )
 

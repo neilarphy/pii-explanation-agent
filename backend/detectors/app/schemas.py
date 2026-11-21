@@ -47,6 +47,7 @@ class ModelCandidate(CandidateBase):
     reason: Literal[
         "model_threshold_passed",
         "below_model_threshold",
+        "invalid_format",
         "context_mismatch",
         "superseded_by_specific_rule",
     ]
@@ -83,6 +84,8 @@ class ModelTrace(Contract):
     accept_threshold: float
     labels: list[str]
     windows: list[WindowTrace]
+    label_groups: list[list[str]] = Field(default_factory=list)
+    schema_labels: list[list[str]] = Field(default_factory=list)
 
 
 class RuleTrace(Contract):

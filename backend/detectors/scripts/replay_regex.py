@@ -28,6 +28,15 @@ def replay_record(record, profile, detector):
         or tuple(metadata["labels"]) != profile.labels
         or metadata["emit_threshold"] != profile.emit_threshold
         or metadata["accept_threshold"] != profile.accept_threshold
+        or tuple(tuple(g) for g in metadata.get("label_groups", [metadata["labels"]]))
+        != profile.model_groups
+        or tuple(
+            tuple(g)
+            for g in metadata.get(
+                "schema_labels", metadata.get("label_groups", [metadata["labels"]])
+            )
+        )
+        != profile.model_schemas
     ):
         raise ValueError("Cached model configuration differs from the selected profile")
     text = record["text"]
@@ -58,9 +67,15 @@ def replay_record(record, profile, detector):
     model = ModelRun(
         tuple(observations),
         ModelMetadata(
-            **{k: v for k, v in metadata.items() if k not in {"labels", "windows"}},
+            **{
+                k: v
+                for k, v in metadata.items()
+                if k not in {"labels", "windows", "label_groups", "schema_labels"}
+            },
             labels=tuple(metadata["labels"]),
             windows=windows,
+            label_groups=profile.model_groups,
+            schema_labels=profile.model_schemas,
         ),
     )
     response = build_response(

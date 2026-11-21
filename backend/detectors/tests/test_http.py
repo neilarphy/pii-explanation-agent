@@ -32,8 +32,8 @@ def client(profile):
 def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, monkeypatch):
     source = (
         DEFAULT_PROFILE_PATH.read_text()
-        .replace("pii-ru-en-v4", "experiment-v1")
-        .replace("policy_version = '2.1.0'", "policy_version = '2.2.0'")
+        .replace("pii-ru-en-v5", "experiment-v1")
+        .replace("policy_version = '3.0.0'", "policy_version = '3.1.0'")
         .replace("emit_threshold = 0.20", "emit_threshold = 0.30")
         .replace("accept_threshold = 0.50", "accept_threshold = 0.70")
         .replace("email_ascii_v1", "experiment_email_v1")
@@ -53,7 +53,7 @@ def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, mon
     result = response.json()
     trace = result["trace"]
     assert result["has_pii"] and result["entities"][0]["type"] == "EMAIL"
-    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "2.2.0"
+    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "3.1.0"
     assert trace["model"]["emit_threshold"] == 0.30
     assert trace["model"]["accept_threshold"] == 0.70
     assert trace["model"]["labels"] == ["person", "passport"]
@@ -160,7 +160,7 @@ def test_address_and_passport_extensions_over_http(client):
         ("ADDRESS", address),
         ("PASSPORT", passport),
     }
-    assert body["trace"]["profile"] == "pii-ru-en-v4"
+    assert body["trace"]["profile"] == "pii-ru-en-v5"
     for entity in body["entities"]:
         assert text[entity["start"] : entity["end"]] == entity["text"]
         evidence = [c for c in body["trace"]["candidates"] if c["entity_id"] == entity["id"]]
@@ -177,7 +177,7 @@ def test_structured_entities_and_conflict_reasons_over_http(client):
         "DRIVER_LICENSE": "77 14 987654",
         "BIRTH_CERTIFICATE": "III-АГ 112233",
         "MILITARY_ID": "МЗ 0045678",
-        "OMS_POLICY": "4111 1111 1111 1111",
+        "OMS": "4111 1111 1111 1111",
         "DATE_OF_BIRTH": "29.02.2000",
         "ADDRESS": "г. Казань, пр-т Мира, д. 43, кв. 154",
     }
@@ -190,7 +190,7 @@ def test_structured_entities_and_conflict_reasons_over_http(client):
             "Водительское удостоверение: " + expected["DRIVER_LICENSE"],
             "Свидетельство о рождении: " + expected["BIRTH_CERTIFICATE"],
             "Военный билет: " + expected["MILITARY_ID"],
-            "Полис ОМС: " + expected["OMS_POLICY"],
+            "Полис ОМС: " + expected["OMS"],
             "Дата рождения: " + expected["DATE_OF_BIRTH"],
             "Адрес: " + expected["ADDRESS"],
         ]
@@ -201,8 +201,8 @@ def test_structured_entities_and_conflict_reasons_over_http(client):
     assert body["has_pii"]
     assert {e["type"]: e["text"] for e in body["entities"]} == expected
     assert len(body["entities"]) == len(expected)
-    assert body["trace"]["profile"] == "pii-ru-en-v4"
-    assert body["trace"]["policy_version"] == "2.1.0"
+    assert body["trace"]["profile"] == "pii-ru-en-v5"
+    assert body["trace"]["policy_version"] == "3.0.0"
     candidates = {c["id"]: c for c in body["trace"]["candidates"]}
     for entity in body["entities"]:
         assert text[entity["start"] : entity["end"]] == entity["text"]
@@ -227,7 +227,7 @@ def test_optional_ip_profile_over_http(client):
         ("IP_ADDRESS", "192.0.2.1"),
         ("IP_ADDRESS", "2001:db8::1"),
     ]
-    assert body["trace"]["profile"] == "pii-ru-en-v4-ip"
+    assert body["trace"]["profile"] == "pii-ru-en-v5-ip"
 
 
 @pytest.mark.parametrize("text", ["", " \r\n\t", "no matches"])

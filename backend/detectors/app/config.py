@@ -43,6 +43,24 @@ class Profile:
     public_types: dict[str, str]
     rules: tuple[Rule, ...]
     resolve_conflicts: bool = False
+    ner_label_groups: tuple[tuple[str, ...], ...] = ()
+    ner_schema_labels: tuple[tuple[str, ...], ...] = ()
+
+    @property
+    def model_groups(self) -> tuple[tuple[str, ...], ...]:
+        groups = self.ner_label_groups
+        # Programmatic label overrides (e.g. dataclasses.replace) also stay coherent.
+        return (
+            groups if tuple(label for g in groups for label in g) == self.labels else (self.labels,)
+        )
+
+    @property
+    def model_schemas(self) -> tuple[tuple[str, ...], ...]:
+        return (
+            self.ner_schema_labels
+            if self.model_groups == self.ner_label_groups and self.ner_schema_labels
+            else self.model_groups
+        )
 
     def public_type(self, label: str) -> str:
         return self.public_types.get(label, label.upper())
@@ -88,6 +106,21 @@ def load_profile(path: Path | None = None) -> Profile:
         ) or not all(isinstance(rule.pattern, str) for rule in rules):
             raise ValueError
         defaults = parse_labels(None, tuple(defaults))
+        raw_groups = data.get("ner_label_groups", [list(defaults)])
+        if not isinstance(raw_groups, list) or not all(isinstance(g, list) for g in raw_groups):
+            raise ValueError
+        groups = tuple(parse_labels(None, tuple(g)) for g in raw_groups)
+        if tuple(label for g in groups for label in g) != defaults:
+            raise ValueError
+        raw_schemas = data.get("ner_schema_labels", raw_groups)
+        if not isinstance(raw_schemas, list) or not all(isinstance(g, list) for g in raw_schemas):
+            raise ValueError
+        schemas = tuple(parse_labels(None, tuple(g)) for g in raw_schemas)
+        if len(schemas) != len(groups) or any(
+            not set(group) <= set(schema) <= set(defaults)
+            for group, schema in zip(groups, schemas, strict=True)
+        ):
+            raise ValueError
     except ConfigurationError:
         raise ConfigurationError("profile: invalid default NER labels") from None
     except (KeyError, TypeError, ValueError):
@@ -99,6 +132,11 @@ def load_profile(path: Path | None = None) -> Profile:
     ):
         raise ConfigurationError("profile: invalid thresholds")
     labels = parse_labels(os.environ.get("NER_LABELS"), defaults)
+    if "NER_LABELS" in os.environ:
+        groups = (labels,)
+        schemas = groups
     if len({rule.id for rule in rules}) != len(rules):
         raise ConfigurationError("profile: duplicate rule ID")
-    return Profile(name, policy, emit, accept, labels, public_types, rules, resolve_conflicts)
+    return Profile(
+        name, policy, emit, accept, labels, public_types, rules, resolve_conflicts, groups, schemas
+    )

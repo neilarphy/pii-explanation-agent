@@ -100,12 +100,19 @@ class GlinerDetector:
             raise ConfigurationError("CUDA: parameter placement or dtype")
         self.device = str(next(self.model.parameters()).device)
         self.dtype = str(next(self.model.parameters()).dtype).removeprefix("torch.")
-        self.schema = self.model.create_schema().entities(
-            entity_types=list(profile.labels),
-            threshold=profile.emit_threshold,
+        self.groups = profile.model_groups
+        self.schemas = tuple(
+            self.model.create_schema().entities(
+                entity_types=list(labels), threshold=profile.emit_threshold
+            )
+            for labels in profile.model_schemas
         )
-        self.budget = ProcessorBudget(self.model, self.schema)
-        if not self.budget.fits("a"):
+        self.budgets = tuple(ProcessorBudget(self.model, schema) for schema in self.schemas)
+        self.group_profiles = tuple(
+            replace(profile, labels=labels) for labels in profile.model_schemas
+        )
+        self.schema, self.budget = self.schemas[0], self.budgets[0]
+        if not all(budget.fits("a") for budget in self.budgets):
             raise ConfigurationError("NER_LABELS: schema leaves no room for one text token")
 
     def detect(self, text: str) -> ModelRun:
@@ -113,20 +120,33 @@ class GlinerDetector:
         observations, windows = [], []
         try:
             plan = (
-                plan_windows(text, self.budget.spans(text), self.budget.fits) if not blank else ()
+                plan_windows(
+                    text,
+                    self.budget.spans(text),
+                    lambda part: all(budget.fits(part) for budget in self.budgets),
+                )
+                if not blank
+                else ()
             )
             with self.torch.inference_mode():
                 for window in plan:
                     part = text[window.start : window.end]
-                    result = self.model.extract(
-                        part,
-                        schema=self.schema,
-                        include_spans=True,
-                        include_confidence=True,
-                    )
-                    # Confidence/offset extraction is host-visible; also fence all GPU work.
-                    self.torch.cuda.synchronize(0)
-                    found = decode_window(result, text, window, self.profile)
+                    found = []
+                    for schema, group_profile, retained in zip(
+                        self.schemas, self.group_profiles, self.groups, strict=True
+                    ):
+                        result = self.model.extract(
+                            part,
+                            schema=schema,
+                            include_spans=True,
+                            include_confidence=True,
+                        )
+                        self.torch.cuda.synchronize(0)
+                        found.extend(
+                            o
+                            for o in decode_window(result, text, window, group_profile)
+                            if o.raw_label in retained
+                        )
                     observations.extend(found)
                     if len(observations) > MAX_CANDIDATES:
                         raise TraceLimitError("model")
@@ -155,5 +175,7 @@ class GlinerDetector:
                 self.profile.accept_threshold,
                 self.profile.labels,
                 tuple(windows),
+                self.groups,
+                self.profile.model_schemas,
             ),
         )

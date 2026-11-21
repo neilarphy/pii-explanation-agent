@@ -19,6 +19,12 @@ def library(monkeypatch):
 
     state = SimpleNamespace(schema_calls=[], calls=[], mode=False, synced=0, result=None, fail=None)
 
+    class Schema:
+        def entities(self, *, entity_types, threshold):
+            state.schema_calls.append((entity_types, threshold))
+            self.labels = entity_types
+            return self
+
     class Cache:
         def cache_clear(self):
             state.cleared = True
@@ -52,20 +58,17 @@ def library(monkeypatch):
 
         def create_schema(self):
             state.schema_created = getattr(state, "schema_created", 0) + 1
-            return self
-
-        def entities(self, *, entity_types, threshold):
-            state.schema_calls.append((entity_types, threshold))
-            self.labels = entity_types
-            return self
+            return Schema()
 
         def extract(self, text, *, schema, include_spans, include_confidence):
             assert state.mode and include_spans and include_confidence
-            assert schema is self
+            assert isinstance(schema, Schema)
             state.calls.append((text, threading.get_ident()))
             if state.fail:
                 raise state.fail
-            return state.result or {"entities": {label: [] for label in self.labels}}
+            if hasattr(state, "answer"):
+                return state.answer(text, schema.labels)
+            return state.result or {"entities": {label: [] for label in schema.labels}}
 
     model = Model()
 
@@ -156,3 +159,45 @@ def test_no_gpu_is_startup_failure(profile, library, tmp_path):
     library.torch.cuda.is_available = lambda: False
     with pytest.raises(ConfigurationError, match="CUDA"):
         GlinerDetector(profile, tmp_path)
+
+
+def test_label_groups_keep_independent_scores_and_complete_window_counts(
+    profile, library, tmp_path
+):
+    def answer(text, labels):
+        values = (
+            [("national_id", 0.91)]
+            if len(labels) == 11
+            else [("national_id", 0.1), ("medical_policy", 0.81)]
+        )
+        return {
+            "entities": {
+                label: [{"text": text, "start": 0, "end": len(text), "confidence": score}]
+                for label, score in values
+            }
+        }
+
+    library.answer = answer
+    detector = GlinerDetector(profile, tmp_path)
+    result = detector.detect("12345678901")
+    assert library.schema_calls == [(list(group), 0.20) for group in profile.model_schemas]
+    assert [o.raw_label for o in result.observations] == ["national_id", "medical_policy"]
+    assert [o.score for o in result.observations] == [0.91, 0.81]
+    assert result.metadata.windows[0].candidate_count == 2
+    assert result.metadata.labels == profile.labels
+    assert result.metadata.label_groups == profile.model_groups
+    assert result.metadata.schema_labels == profile.model_schemas
+    assert len(library.calls) == library.synced == 2
+
+
+def test_second_group_failure_does_not_return_partial_inference(profile, library, tmp_path):
+    def answer(text, labels):
+        if "medical_policy" in labels:
+            raise ValueError("private")
+        return {"entities": {}}
+
+    library.answer = answer
+    detector = GlinerDetector(profile, tmp_path)
+    with pytest.raises(ServiceError, match="INTERNAL_ERROR"):
+        detector.detect("12345678901")
+    assert len(library.calls) == 2 and library.cleared

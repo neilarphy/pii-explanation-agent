@@ -1,0 +1,11 @@
+--- a/backend/schemas/detection.py
++++ b/backend/schemas/detection.py
+@@ -13,6 +13,8 @@
+     "invalid_boundary",
+     "invalid_format",
+     "checksum_failed",
++    "context_mismatch",
++    "superseded_by_specific_rule",
+ ]
+ 
+ 

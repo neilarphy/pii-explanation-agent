@@ -26,6 +26,13 @@ OTHER_DOCUMENT_FIELD = re.compile(
     rf"(?!\w){H}*(?:[:№=–—-]{H}*)?(?:номер{H}*[:№]?{H}*)?$"
 )
 CONTEXT_BREAK = re.compile(r'[\r\n";]')
+PAYMENT_CONTEXT = re.compile(
+    rf"(?i)(?<!\w)(?:карта|номер{H}+(?:банковской{H}+)?карты|card(?:{H}+number)?)(?!\w){H}*(?:[:№=–—-]{H}*)?$"
+)
+
+
+def payment_context(text: str, start: int) -> bool:
+    return PAYMENT_CONTEXT.search(text, max(0, start - 100), start) is not None
 
 
 def ascii_digits(value: str) -> str:
@@ -91,7 +98,12 @@ def valid_phone_ru(value: str) -> bool:
 def structured_reason(value: str, validator: str) -> str:
     digits = ascii_digits(value)
     if validator in {"inn", "snils", "oms_policy", "phone_context"}:
-        if re.fullmatch(r"\+?[0-9](?:[^\S\r\n]|[-–—]|[0-9])*", value) is None:
+        pattern = (
+            rf"[0-9]{{4}}(?:{H}*(?:[-.–—]{H}*)?[0-9]{{4}}){{3}}"
+            if validator == "oms_policy"
+            else r"\+?[0-9](?:[^\S\r\n]|[-–—]|[0-9])*"
+        )
+        if re.fullmatch(pattern, value) is None:
             return "invalid_format"
         if validator == "phone_context":
             good = digits[0] != "0" and (

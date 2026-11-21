@@ -149,7 +149,7 @@ def test_oms_supersedes_card_and_account_but_preserves_evidence(profile):
             M("bank_account", "BANK_ACCOUNT", "w1", 0, start, len(text), 0.90),
         ],
     )
-    assert [e.type for e in result.entities] == ["OMS_POLICY"]
+    assert [e.type for e in result.entities] == ["OMS"]
     assert result.entities[0].text == value
     rejected = [c for c in result.trace.candidates if c.decision == "rejected"]
     assert len(rejected) == 3  # Both model candidates and the Luhn-valid regex candidate.
@@ -265,7 +265,55 @@ def test_explicit_plus_keeps_phone_despite_incidental_snils_checksum(profile):
 def test_equal_strength_contextual_conflict_is_preserved(profile):
     from dataclasses import replace
 
-    oms = next(r for r in profile.rules if r.id == "oms_policy_ru_v1")
+    oms = next(r for r in profile.rules if r.id == "oms_policy_ru_v2")
     conflicting = replace(oms, id="ambiguous_card", type="PAYMENT_CARD")
     result = policy_response(replace(profile, rules=(oms, conflicting)), "ОМС: 4111 1111 1111 1111")
-    assert {e.type for e in result.entities} == {"OMS_POLICY", "PAYMENT_CARD"}
+    assert {e.type for e in result.entities} == {"OMS", "PAYMENT_CARD"}
+
+
+@pytest.mark.parametrize(
+    "kind,label",
+    [
+        ("OMS", "medical_policy"),
+        ("BIRTH_CERTIFICATE", "birth_certificate"),
+        ("MILITARY_ID", "military_id"),
+        ("DRIVER_LICENSE", "driver_license"),
+    ],
+)
+def test_new_document_model_requires_value_shape(profile, kind, label):
+    text = "документы для договора"
+    result = policy_response(profile, text, [M(label, kind, "w1", 0, 0, len(text), 0.99)])
+    assert not result.entities
+    model = next(c for c in result.trace.candidates if c.source == "model")
+    assert model.reason == "invalid_format" and model.score == 0.99
+
+
+@pytest.mark.parametrize(
+    "prefix,kind,reason",
+    [
+        ("Карта: ", "PAYMENT_CARD", "superseded_by_specific_rule"),
+        ("Номер заказа: ", None, "context_mismatch"),
+    ],
+)
+def test_card_or_order_context_does_not_become_model_oms(profile, prefix, kind, reason):
+    value = "4111 1111 1111 1111"
+    text = prefix + value
+    result = policy_response(
+        profile, text, [M("medical_policy", "OMS", "w1", 0, len(prefix), len(text), 0.99)]
+    )
+    assert {e.type for e in result.entities} == ({kind} if kind else set())
+    model = next(c for c in result.trace.candidates if c.source == "model")
+    assert model.reason == reason and model.decision == "rejected"
+
+
+def test_contextual_oms_keeps_model_and_regex_evidence(profile):
+    text = "Полис ОМС: 4111 1111 1111 1111"
+    start = text.index("4111")
+    result = policy_response(
+        profile, text, [M("medical_policy", "OMS", "w1", 0, start, len(text), 0.99)]
+    )
+    assert [e.type for e in result.entities] == ["OMS"]
+    assert {c.source for c in result.trace.candidates if c.decision == "accepted"} == {
+        "model",
+        "regex",
+    }

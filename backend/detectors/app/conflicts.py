@@ -1,11 +1,19 @@
 """Explain narrow conflicts between identifiers while keeping unrelated overlaps."""
 
-from .structured import ascii_digits, non_payment_context
+from .structured import ascii_digits, non_payment_context, payment_context, structured_reason
+
+DOCUMENT_MODELS = {
+    "DRIVER_LICENSE": "driver_license_ru",
+    "BIRTH_CERTIFICATE": "birth_certificate",
+    "MILITARY_ID": "military_id",
+    "OMS": "oms_policy",
+}
 
 SPECIFIC_TYPES = frozenset(
     {
         "INN",
         "SNILS",
+        "OMS",
         "OMS_POLICY",
         "PASSPORT",
         "DRIVER_LICENSE",
@@ -37,11 +45,29 @@ def resolve_identifier_conflicts(text, candidates, contextual_ids):
             elif candidate.type in {"PHONE", "PAYMENT_CARD", "BANK_ACCOUNT"}:
                 priority = 2 if candidate.id in contextual_ids else 1
                 supporting = candidate.type == "PHONE" and candidate.id in contextual_ids
+                if candidate.type == "PAYMENT_CARD" and payment_context(text, candidate.start):
+                    priority, supporting = 2, True
         priorities[candidate.id] = priority
         if supporting:
             supports.setdefault(value_key(candidate), []).append(candidate)
     # Remove card-shaped order/requisite values independently of any other detector.
     for candidate in candidates:
+        validator = DOCUMENT_MODELS.get(candidate.type)
+        if candidate.source == "model" and candidate.decision == "accepted" and validator:
+            valid_shape = (
+                structured_reason(text[candidate.start : candidate.end], validator) == "rule_passed"
+            )
+            same_rule = any(
+                support.type == candidate.type
+                and candidate.start <= support.start < support.end <= candidate.end
+                for support in supports.get(value_key(candidate), ())
+            )
+            if not valid_shape and not same_rule:
+                candidate.decision = "rejected"
+                candidate.reason = "invalid_format"
+            elif not same_rule and non_payment_context(text, candidate.start):
+                candidate.decision = "rejected"
+                candidate.reason = "context_mismatch"
         if (
             candidate.decision == "accepted"
             and candidate.type == "PAYMENT_CARD"

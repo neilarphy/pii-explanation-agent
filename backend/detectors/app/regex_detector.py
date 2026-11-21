@@ -62,9 +62,10 @@ def valid_boundary(text: str, start: int, end: int, validator: str) -> bool:
         # including the same ASCII separators permitted by the rule.
         before = start - 1
         after = end
-        while before >= 0 and (text[before].isspace() or text[before] in "-–—"):
+        separators = "-–—." if validator == "oms_policy" else "-–—"
+        while before >= 0 and (text[before].isspace() or text[before] in separators):
             before -= 1
-        while after < len(text) and (text[after].isspace() or text[after] in "-–—"):
+        while after < len(text) and (text[after].isspace() or text[after] in separators):
             after += 1
         if (before >= 0 and text[before].isdigit()) or (
             after < len(text) and text[after].isdigit()

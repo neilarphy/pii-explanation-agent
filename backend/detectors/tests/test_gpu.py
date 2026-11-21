@@ -51,7 +51,8 @@ def test_last_window_really_inferred(detector, monkeypatch):
 
     monkeypatch.setattr(detector.model, "extract", recording)
     run = detector.detect(text)
-    assert len(called) == len(run.metadata.windows) > 1
+    assert len(run.metadata.windows) > 1
+    assert len(called) == len(run.metadata.windows) * len(detector.groups)
     last = run.metadata.windows[-1]
     assert last.end == len(text) and called[-1] == text[last.start : last.end]
     for obs in run.observations:
@@ -63,14 +64,17 @@ def test_last_window_really_inferred(detector, monkeypatch):
 def test_pinned_real_processor_and_schema(detector):
     text = "🙂 Анна\r\ne\u0301\ue000 a@example.org"
     processor = detector.model.processor
-    record = processor.transform_record(text, detector.schema, max_len=None)
-    batch = processor.collate_fn_inference([(text, detector.schema)], max_len=None)
-    assert record.text == batch.original_texts[0] == text
-    assert record.input_ids == batch.input_ids[0, : len(record.input_ids)].tolist()
-    assert record.schema["entities"].keys() == dict.fromkeys(detector.profile.labels).keys()
-    for start, end in zip(record.start_token_idx, record.end_token_idx, strict=True):
-        assert 0 <= start < end <= len(text)
-    assert detector.budget.fits(text)
+    for schema, labels, budget in zip(
+        detector.schemas, detector.profile.model_schemas, detector.budgets, strict=True
+    ):
+        record = processor.transform_record(text, schema, max_len=None)
+        batch = processor.collate_fn_inference([(text, schema)], max_len=None)
+        assert record.text == batch.original_texts[0] == text
+        assert record.input_ids == batch.input_ids[0, : len(record.input_ids)].tolist()
+        assert record.schema["entities"].keys() == dict.fromkeys(labels).keys()
+        for start, end in zip(record.start_token_idx, record.end_token_idx, strict=True):
+            assert 0 <= start < end <= len(text)
+        assert budget.fits(text)
     blank = detector.detect(" \r\n\t")
     assert not blank.observations and not blank.metadata.windows
     assert blank.metadata.labels == detector.profile.labels
