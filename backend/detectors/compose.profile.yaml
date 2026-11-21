@@ -1,0 +1,11 @@
+services:
+  pii:
+    environment:
+      PROFILE_PATH: /profiles/selected.toml
+    volumes:
+      - type: bind
+        source: ${PROFILE_FILE:?Set PROFILE_FILE to an existing TOML profile}
+        target: /profiles/selected.toml
+        read_only: true
+        bind:
+          create_host_path: false

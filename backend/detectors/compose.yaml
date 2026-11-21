@@ -8,6 +8,7 @@ services:
       dockerfile: backend/detectors/Dockerfile
     environment:
       - NER_LABELS
+      - PROFILE_PATH
       - HF_HUB_OFFLINE=1
       - TRANSFORMERS_OFFLINE=1
       - HF_HUB_DISABLE_TELEMETRY=1

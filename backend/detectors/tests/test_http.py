@@ -12,7 +12,7 @@ pytest.importorskip("httpx", exc_type=ModuleNotFoundError)
 
 from fastapi.testclient import TestClient
 
-from backend.detectors.app.config import MAX_BODY, load_profile
+from backend.detectors.app.config import DEFAULT_PROFILE_PATH, MAX_BODY, load_profile
 from backend.detectors.app.errors import AdapterContractError, ServiceError, TraceLimitError
 from backend.detectors.app.main import create_app
 from backend.detectors.app.observations import ModelObservation as M
@@ -27,6 +27,37 @@ def client(profile):
     pipeline = Pipeline(EmptyModel(profile), RegexDetector(profile), profile)
     with TestClient(create_app(lambda: pipeline)) as client:
         yield client
+
+
+def test_external_profile_is_used_at_startup_and_reported(tmp_path, profile, monkeypatch):
+    source = (
+        DEFAULT_PROFILE_PATH.read_text()
+        .replace("pii-ru-en-v1", "experiment-v1")
+        .replace("policy_version = '1.0.0'", "policy_version = '1.1.0'")
+        .replace("emit_threshold = 0.20", "emit_threshold = 0.30")
+        .replace("accept_threshold = 0.50", "accept_threshold = 0.70")
+        .replace("email_ascii_v1", "experiment_email_v1")
+    )
+    path = tmp_path / "experiment.toml"
+    path.write_text(source)
+    monkeypatch.setenv("PROFILE_PATH", str(path))
+    monkeypatch.setenv("NER_LABELS", "person,passport")
+    monkeypatch.setattr(
+        "backend.detectors.app.gliner_detector.GlinerDetector",
+        lambda selected, model_path: EmptyModel(selected),
+    )
+    with TestClient(create_app()) as client:
+        assert client.get("/health/ready").status_code == 200
+        response = client.post("/v1/detect", json={"text": "a@example.org"})
+    assert response.status_code == 200
+    result = response.json()
+    trace = result["trace"]
+    assert result["has_pii"] and result["entities"][0]["type"] == "EMAIL"
+    assert trace["profile"] == "experiment-v1" and trace["policy_version"] == "1.1.0"
+    assert trace["model"]["emit_threshold"] == 0.30
+    assert trace["model"]["accept_threshold"] == 0.70
+    assert trace["model"]["labels"] == ["person", "passport"]
+    assert trace["regex"]["rules"][0]["id"] == "experiment_email_v1"
 
 
 def assert_error(response, status, code, stage="validation", completed=()):

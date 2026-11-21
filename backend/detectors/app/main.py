@@ -133,19 +133,14 @@ class HTTPBoundary:
 
 
 def initialize():
-    # NER_LABELS and all regex compilation fail before loading weights.
+    # Profile selection, NER_LABELS and regex compilation fail before loading weights.
     profile = load_profile()
     regex = RegexDetector(profile)
     from .gliner_detector import GlinerDetector
 
     model = GlinerDetector(profile, Path(os.environ.get("MODEL_PATH", "/models")))
     model.detect("Anna Smith, Анна Иванова: a@example.org")
-    probe = regex.detect("a@example.org a@example.org")
-    if [(o.start, o.end) for o in probe.observations if o.rule_id == "email_ascii_v1"] != [
-        (0, 13),
-        (14, 27),
-    ]:
-        raise ConfigurationError("regex: warmup failed")
+    regex.detect("a@example.org a@example.org")
     return Pipeline(model, regex, profile)
 
 

@@ -14,4 +14,5 @@ def pytest_configure(config):
 @pytest.fixture
 def profile(monkeypatch):
     monkeypatch.delenv("NER_LABELS", raising=False)
+    monkeypatch.delenv("PROFILE_PATH", raising=False)
     return load_profile()
