@@ -360,6 +360,42 @@ uv run --no-sync python -m backend.detectors.scripts.manual_measure \
 Начальная загрузка модели не входит во время запросов; единственный проход не служит
 нагрузочным тестом. Результаты в `acceptance-output/` не попадают в git.
 
+Для PII-Bench есть отдельный runner `scripts/pii_bench.py` с командами `collect`
+и `score`. Прогон от 21.11.2026 использует весь
+[`hivetrace/pii-bench@cd6a18a`](https://huggingface.co/datasets/hivetrace/pii-bench/tree/cd6a18ace16daf23e79247ccf1e2b245d4054654):
+900 строк `domain` и 910 строк `entity`, без исключённых строк и ошибок разметки.
+Исходные Parquet, подготовленные строки `data/items.jsonl`, SHA-256, ответы v1/v3,
+CSV по типам и ошибки сохранены в `acceptance-output/pii-bench-cd6a18a-20261121/`.
+Подготовка JSONL использует `pyarrow==26.0.1` в отдельном окружении оценки; он не нужен
+для HTTP-прогона, подсчёта метрик или работы сервиса.
+
+Пример повторного запуска из корня с уже подготовленным `items.jsonl`:
+
+```bash
+python -m backend.detectors.scripts.pii_bench collect \
+  --items backend/detectors/acceptance-output/pii-bench-cd6a18a-20261121/data/items.jsonl \
+  --url http://127.0.0.1:18000 --expected-profile pii-ru-en-v3 \
+  --output backend/detectors/acceptance-output/pii-bench-new-responses.jsonl
+python -m backend.detectors.scripts.pii_bench score \
+  --responses backend/detectors/acceptance-output/pii-bench-new-responses.jsonl \
+  --output backend/detectors/acceptance-output/pii-bench-new-metrics.json
+```
+
+В сервис передаётся точное исходное поле `text`, включая JSON-строку `L-DIALOG`,
+без разбиения на реплики. Поэтому результат напрямую не сравнивается с прежним
+runner из `main`, который разбирал диалоги и объединял ИНН/СНИЛС в `NATIONAL_ID`.
+Здесь `INN` и `SNILS` оцениваются отдельно, ошибочный тип даёт одновременно FP и FN,
+а совпадения сопоставляются один к одному. Полные метрики учитывают все 13 классов
+эталона, включая неподдерживаемые `CVC`, `KPP`, `OGRN`, `OGRNIP`, `TOKEN`.
+Отдельная сводка по восьми поддерживаемым классам фильтрует как эталонные, так и
+предсказанные типы по этому списку.
+
+Отчёт содержит строгие метрики на исходных entities и после удаления полностью
+вложенных спанов одного типа. Постобработка не объединяет непересекающиеся части
+адреса и не меняет HTTP-ответы. Дополнительно считаются типизированные пересечения
+и покрытие символов независимо от типа. NAME/ADDRESS и остальные классы показаны
+отдельно в CSV. При замере параметры модели, пороги и регулярки не менялись.
+
 `tests/fixtures/contract.json` — **контрактная фикстура** текущего профиля
 с синтетической ревизией и заданными scores. Тест собирает и
 сравнивает весь ответ. Это не ответ живой модели. GPU-smoke использует реальные
