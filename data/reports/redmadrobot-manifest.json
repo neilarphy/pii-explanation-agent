@@ -1,0 +1,16 @@
+{
+  "dataset": "redmadrobot-rnd/pii_benchmark",
+  "revision": "f77ea831274daf980cc45c61a93c226be9d978d6",
+  "license": "MIT",
+  "url": "https://huggingface.co/datasets/redmadrobot-rnd/pii_benchmark/resolve/f77ea831274daf980cc45c61a93c226be9d978d6/test.csv",
+  "sha256": "6bf544a380a3ee5bec94b946124bea3afaecce49e734679ad0f0c0e7c12977bb",
+  "adapter_version": 2,
+  "split": "test",
+  "counts": {
+    "rows": 2841,
+    "accepted": 2841,
+    "rejected": 0,
+    "entities": 5614,
+    "duplicate_texts": 0
+  }
+}
