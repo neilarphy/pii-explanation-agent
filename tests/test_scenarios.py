@@ -1,12 +1,30 @@
 """Генератор сценариев: значения валидны, офсеты считает код, ошибки LLM ловятся."""
 
+import json
 import random
 import re
+import runpy
+import sys
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from backend.agent.checks import identify
-from evaluation.scenarios import SCENARIOS, apply_fixes, draw_values, fill, generator_messages
+from backend.schemas import Session
+from evaluation.metrics import expected
+from evaluation.pii_bench import gold_from_json, gold_to_json
+from evaluation.scenarios import (
+    SCENARIOS,
+    SPLITS,
+    apply_fixes,
+    draw_values,
+    fill,
+    generator_messages,
+    group_split,
+)
 
 BY_ID = {s.id: s for s in SCENARIOS}
 
@@ -79,3 +97,89 @@ def test_gold_fixes_are_added_once_with_offsets_from_text():
     ]
     with pytest.raises(ValueError):
         apply_fixes(record, [{**fix, "text": "Борис"}])
+
+
+def test_variants_share_parent_split_regardless_of_order():
+    scenario = BY_ID["test_card"]
+    values = draw_values(scenario, random.Random(1))
+    groups = [f"parent-{i}" for i in range(100)]
+
+    def assignments(order):
+        result = {split: set() for split in SPLITS}
+        for group in order:
+            for variant in ("a", "b"):
+                messages = [{"role": "user", "content": variant + " {{TEST_CARD}}"}]
+                item = fill(scenario, f"{group}-{variant}", messages, values, group_id=group)
+                assert item.session.meta["group_id"] == group
+                assert item.session.meta["split"] == group_split(group)
+                result[item.session.meta["split"]].add(group)
+        return result
+
+    by_split = assignments(groups)
+    assert by_split == assignments(reversed(groups))
+    for split in SPLITS:
+        assert by_split[split]
+        assert not by_split[split].intersection(
+            set.union(*(by_split[other] for other in SPLITS if other != split))
+        )
+
+
+def test_emoji_offsets_round_trip_to_utf16_and_test_card_stays_none():
+    scenario = BY_ID["test_card"]
+    values = draw_values(scenario, random.Random(1))
+    messages = [{"role": "user", "content": "🧪 Карта {{TEST_CARD}} 😀"}]
+    item = fill(scenario, "emoji", messages, values)
+    session = Session.model_validate_json(item.session.model_dump_json())
+    gold = gold_from_json(json.loads(json.dumps(gold_to_json(item.gold))))
+    (span,) = gold
+    text = session.messages[span.turn].text
+    assert text[span.start : span.end] == values["TEST_CARD"]
+    start = len(text[: span.start].encode("utf-16-le")) // 2
+    end = len(text[: span.end].encode("utf-16-le")) // 2
+    assert start == span.start + 1
+    assert text.encode("utf-16-le")[start * 2 : end * 2].decode("utf-16-le") == span.text
+    assert span.cat == "none"
+    case = SimpleNamespace(kind="entity", turn=span.turn, start=span.start, end=span.end)
+    assert expected(case, gold) == ("false_positive", "none")
+
+
+def test_v2_cli_ids_are_disjoint_from_committed_v1_and_stable(tmp_path, monkeypatch):
+    script = runpy.run_path("scripts/generate_scenarios.py")
+    main = script["main"]
+
+    def complete(messages):
+        keys = re.findall(r"\{\{[A-Z_]+\}\}", messages[-1]["content"])
+        return json.dumps([{"role": "user", "content": " ".join(keys)}])
+
+    monkeypatch.setitem(main.__globals__, "client_from_env", lambda model: complete)
+
+    def generate(filename, *options):
+        path = tmp_path / filename
+        monkeypatch.setattr(sys, "argv", ["generate_scenarios", "--out", str(path), *options])
+        with redirect_stdout(StringIO()) as output:
+            output.reconfigure = lambda **_: None
+            assert main() == 0
+        return {
+            record["session"]["id"]: record
+            for record in map(json.loads, path.read_text("utf-8").splitlines())
+        }
+
+    v1_ids = {
+        json.loads(line)["session"]["id"]
+        for line in Path("data/scenarios/scenarios-v1.jsonl").read_text("utf-8").splitlines()
+    }
+    v2 = generate("v2.jsonl")
+    assert len(v2) == len(v1_ids) == 65
+    assert v1_ids.isdisjoint(v2)
+    assert v2 == generate("repeat.jsonl")
+    for split in SPLITS:
+        subset = generate(f"{split}.jsonl", "--split", split)
+        assert subset
+        assert subset == {
+            sid: record for sid, record in v2.items() if record["session"]["meta"]["split"] == split
+        }
+    for sid, record in v2.items():
+        meta = record["session"]["meta"]
+        assert meta["group_id"] in v1_ids
+        assert sid == meta["group_id"].replace("sc-", "sc-v2-", 1)
+        assert meta["split"] == group_split(meta["group_id"])

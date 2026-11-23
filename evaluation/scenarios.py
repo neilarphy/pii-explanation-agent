@@ -5,6 +5,7 @@ LLM пишет только текст диалога с заглушками {{
 ни придумать неверный ИНН, ни сдвинуть разметку.
 """
 
+import hashlib
 import random
 import re
 from dataclasses import dataclass, field
@@ -305,8 +306,27 @@ def draw_values(scenario: Scenario, rng: random.Random) -> dict[str, str]:
 _PLACEHOLDER = re.compile(r"\{\{([A-Z_]+)\}\}")
 
 
+SPLITS = ("train", "calibration", "test")
+
+
+def group_split(group_id: str) -> str:
+    """Assign all variants of one parent to the same 60/20/20 hash split."""
+    digest = hashlib.sha256(f"scenario-split-v1:{group_id}".encode()).digest()
+    bucket = int.from_bytes(digest, "big") % 10
+    if bucket < 6:
+        return "train"
+    if bucket < 8:
+        return "calibration"
+    return "test"
+
+
 def fill(
-    scenario: Scenario, item_id: str, messages: list[dict], values: dict[str, str]
+    scenario: Scenario,
+    item_id: str,
+    messages: list[dict],
+    values: dict[str, str],
+    *,
+    group_id: str | None = None,
 ) -> BenchItem:
     """Подставляет значения вместо {{KEY}} и считает офсеты. Ошибка — если ключи не совпали."""
     slot_of = {s.key: s for s in scenario.slots}
@@ -334,8 +354,16 @@ def fill(
     missing = set(values) - set(used)
     if missing:
         raise ValueError(f"{item_id}: не использованы заглушки {sorted(missing)}")
+    group_id = item_id if group_id is None else group_id
     session = Session(
-        id=item_id, messages=session_messages, meta={"source": "scenarios", "scenario": scenario.id}
+        id=item_id,
+        messages=session_messages,
+        meta={
+            "source": "scenarios",
+            "scenario": scenario.id,
+            "group_id": group_id,
+            "split": group_split(group_id),
+        },
     )
     return BenchItem(domain=scenario.id, session=session, gold=tuple(gold))
 
